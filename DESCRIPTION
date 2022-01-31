@@ -11,6 +11,7 @@ LazyData: true
 RoxygenNote: 7.1.2
 Imports: 
     doSNOW,
+    dplyr,
     foreach,
     fs,
     gdistance,
@@ -21,6 +22,7 @@ Imports:
     progress,
     raster,
     Rcpp,
+    rgdal,
     snow,
     sp,
     TMB
