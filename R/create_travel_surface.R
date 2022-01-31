@@ -1,6 +1,6 @@
 
 
-#' Title
+#' Create travel time surfaces
 #'
 #' @param friction_surface A raster containing the travel cost per pixel.
 #' @param points A dataframe containing fields for LABEL, X, and Y for point-level features.
@@ -27,7 +27,7 @@
 #' @importFrom snow makeSOCKcluster stopCluster
 #' @importFrom fs path
 #'
-#'
+#' @export
 #' @return
 #'
 
@@ -256,7 +256,7 @@ create_travel_surface <- function(friction_surface,
         output.filename <- fs::path(output_dir, paste0(HF_list[i], ".tif"))
 
         HF.coords <- c(points[i, x_col], points[i, y_col])
-        HF.raster <- gdistace::accCost(T.GC, HF.coords)
+        HF.raster <- gdistance::accCost(T.GC, HF.coords)
 
         raster::writeRaster(HF.raster, output.filename, overwrite = TRUE)
 

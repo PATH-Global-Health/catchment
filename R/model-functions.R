@@ -57,38 +57,6 @@ make_model_object <- function(dat) {
   #   prob_mat_init <- Matrix::Matrix(t(prob_mat_init), sparse = T)}
 
 
-  # Passing values to TMB model
-  # m <- TMB::MakeADFun(
-  #   data = list(
-  #     Y_hf = dat$weights,
-  #     spde = spde,
-  #     A_pixel = A_pixel,
-  #     pop_pixel = dat$pop_vec,  # vector of populations
-  #     pixel_hf_probs = dat$prob_mat_init,
-  #     which_not_NA = dat$which_not_NA,  # Skip NAs
-  #     learn_hf_mass = 1,  # 1 means TRUE for learning HF masses
-  #     # Prior parameters
-  #     log_rho_mean = log(5),  # Rho is the range parameters (distance where correlation is 0.1), smaller for smaller area
-  #     log_rho_sd = 0.5,
-  #     log_sigma_mean = -1,  # Sigma is the marginal variance (how big the field can get)
-  #     log_sigma_sd = 0.5,
-  #     nu = nu,  # Smoothness
-  #     log_hf_mass_mean = 0.0,  # Mean for HF masses (1 suggests everywhere is the same)
-  #     log_hf_mass_sd = 0.1  # May want to do some prior predictive testing here
-  #   ),
-  #   # Starting values
-  #   parameters = list(
-  #     beta_0=runif(1, -1, 1),
-  #     S=rep(0, n_s),  # Field values on the mesh (vector for static, matrix for dynamic)
-  #     # beta=rnorm(n_covs),
-  #     log_rho=0,
-  #     log_sigma=0,
-  #     log_hf_mass = rep(0,  length(dat$weight))),
-  #   random = c("S", "log_hf_mass"),  # Integrate our random effects
-  #   DLL = "static",
-  #   silent=silent
-  # )
-
   input_data <- list(
     Y_hf = dat$weights,
     spde = spde,

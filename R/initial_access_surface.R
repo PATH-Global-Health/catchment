@@ -1,4 +1,4 @@
-#' Title
+#' Create the initial accessibility surface
 #'
 #' @param travel_matrix A matrix containing travel times, which pixels indexed by rows and locations indexed by columns. Typically created with catchment::create_travel_matrix_from_folder().
 #' @param transform A character, numeric, or function. If character, a predefined transformation will be applied. Currently available options are "inverse_dist_squared". If numeric, then an inverse function with a defined value for the exponential term (e.g., 1/x^value). If a function, then the user-supplied transformation is applied.

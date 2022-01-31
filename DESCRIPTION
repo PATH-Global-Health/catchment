@@ -14,6 +14,7 @@ Imports:
     foreach,
     fs,
     gdistance,
+    INLA,
     magrittr,
     Matrix,
     parallel,
@@ -27,7 +28,5 @@ LinkingTo:
     TMB,
     Rcpp,
     RcppEigen
-Suggests: 
-    INLA
 URL: https://github.com/PATH-Global-Health/catchment
 BugReports: https://github.com/PATH-Global-Health/catchment/issues
