@@ -23,11 +23,17 @@ prepare_data <- function(
   y_col = "y", ...) {
 
   # Extract components from location data
-  weights <- location_data[, which(names(location_data) %in% c(weight_col))]
+  # weights <- location_data[, which(names(location_data) %in% c(weight_col))]
+  # loc_coords <- data.frame(
+  #   x = location_data[, which(names(location_data) %in% c(x_col))],
+  #   y = location_data[, which(names(location_data) %in% c(y_col))])
+  # loc_labels <- location_data[, which(names(location_data) %in% c(id_col))]
+
+  weights <- dplyr::pull(location_data, weight_col)
   loc_coords <- data.frame(
-    x = location_data[, which(names(location_data) %in% c(x_col))],
-    y = location_data[, which(names(location_data) %in% c(y_col))])
-  loc_labels <- location_data[, which(names(location_data) %in% c(id_col))]
+    x = dplyr::pull(location_data, x_col),
+    y = dplyr::pull(location_data, y_col))
+  loc_labels <- dplyr::pull(location_data, id_col)
 
   # Get pixel index
   valid_pix_index <- which(
