@@ -12,7 +12,7 @@ prepare_data(
   weight_col = "weight",
   x_col = "x",
   y_col = "y",
-  ...
+  mesh.args = NULL
 )
 }
 \arguments{

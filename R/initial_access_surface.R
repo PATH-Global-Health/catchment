@@ -4,6 +4,7 @@
 #' @param transform A character, numeric, or function. If character, a predefined transformation will be applied. Currently available options are "inverse_dist_squared". If numeric, then an inverse function with a defined value for the exponential term (e.g., 1/x^value). If a function, then the user-supplied transformation is applied.
 #' @param minimum_time A numeric used to defined a minimum travel time. Travel times below this value will be set to the minimum time, this helps prevent the initial probabilities from being overly skewed by small numbers.
 #' @param force_threshold A numeric used to define the maximum travel distance value, beyond which pixels will be forced to their nearest facility.
+#' @param n_fac_limit either NULL or integer >1 and less than number of facitiies. Used to set a limit on the number of possible facilities an individual picel can attend.
 #' @param normalized TRUE/FALSE Fix probabilities such that all rows (i.e., pixels) sum to 1.
 #' @param sparse TRUE/FALSE return a sparse matrix used by catchment_model
 #'
@@ -18,6 +19,7 @@ initial_access_surface <- function(
   transform = "inverse_dist_squared",
   minimum_time = 10,
   force_threshold = 300,
+  n_fac_limit = NULL,
   normalized = TRUE,
   sparse = TRUE) {
 
@@ -55,11 +57,24 @@ initial_access_surface <- function(
     prob_mat1 <- prob_mat
     prob_mat[travel_matrix > force_threshold] <- 0
 
+    # If there is pixel beyond force threshold for all facilities, go to nearest
+    # facility
     for(i in which_zero){
       which_max <- which.max(prob_mat1[i, ])
       prob_mat[i, which_max] <- 1
     }
   }
+
+  if(!is.null(n_fac_limit)) {
+
+    for(i in 1:rnow(prob_mat)){
+      vec <- order(prob_mat[i,], decreasing = T)
+      prob_mat[i,-vec[-(1:n_fac_limit)]] = 0
+      prob_mat[i,] = prob_mat[i,]/sum(prob_mat[i,])
+    }
+
+  }
+
   # Normalize
   if(normalized){
     for(i in 1:nrow(prob_mat)){prob_mat[i,] <- prob_mat[i,]/sum(prob_mat[i,])}

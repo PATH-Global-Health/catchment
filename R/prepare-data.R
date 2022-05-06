@@ -20,7 +20,8 @@ prepare_data <- function(
   id_col = "label",
   weight_col = "weight",
   x_col = "x",
-  y_col = "y", ...) {
+  y_col = "y",
+  mesh.args = NULL) {
 
   # Extract components from location data
   # weights <- location_data[, which(names(location_data) %in% c(weight_col))]
@@ -58,10 +59,11 @@ prepare_data <- function(
 
 
   # Create INLA mesh
-  mesh <- build_mesh(pixel_locs)
+  mesh <- build_mesh(pixel_locs, mesh.args = mesh.args)
 
   # Return
   out <- list(
+    "pop_raster" = pop_raster,
     "prob_mat_init" = prob_mat_init,
     "weights" = weights,
     "which_not_NA" = as.numeric(!is.na(weights)),
@@ -89,7 +91,7 @@ prepare_data <- function(
 #'
 #' @importFrom INLA inla.mesh.2d
 #'
-build_mesh <- function(pixel_locs, mesh.args = NULL, verbose = F) {
+build_mesh <- function(pixel_locs, mesh.args = mesh.args, verbose = F, ...) {
 
 
   if(!is.null(mesh.args)) stopifnot(inherits(mesh.args, 'list'))

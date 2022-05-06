@@ -4,7 +4,7 @@
 \alias{build_mesh}
 \title{Create INLA mesh}
 \usage{
-build_mesh(pixel_locs, mesh.args = NULL, verbose = F)
+build_mesh(pixel_locs, mesh.args = mesh.args, verbose = F, ...)
 }
 \arguments{
 \item{pixel_locs}{A two-column matrix containing pixel coordinates}

@@ -9,6 +9,7 @@ initial_access_surface(
   transform = "inverse_dist_squared",
   minimum_time = 10,
   force_threshold = 300,
+  n_fac_limit = NULL,
   normalized = TRUE,
   sparse = TRUE
 )
@@ -21,6 +22,8 @@ initial_access_surface(
 \item{minimum_time}{A numeric used to defined a minimum travel time. Travel times below this value will be set to the minimum time, this helps prevent the initial probabilities from being overly skewed by small numbers.}
 
 \item{force_threshold}{A numeric used to define the maximum travel distance value, beyond which pixels will be forced to their nearest facility.}
+
+\item{n_fac_limit}{either NULL or integer >1 and less than number of facitiies. Used to set a limit on the number of possible facilities an individual picel can attend.}
 
 \item{normalized}{TRUE/FALSE Fix probabilities such that all rows (i.e., pixels) sum to 1.}
 
