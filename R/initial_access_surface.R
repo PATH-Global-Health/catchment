@@ -28,12 +28,13 @@ initial_access_surface <- function(
 
   if(sum(is.na(prob_mat)) > 0){
     message("Setting NA values from travel matrix to maximum value.")
-    prob_mat[is.na(prob_mat)] <- max(prob_mat, na.rm = T)}
+    prob_mat[is.na(prob_mat)] <- max(prob_mat, na.rm = T)
+    }
 
   if(!is.null(minimum_time)){
     message("Adjusting times less than ", minimum_time,
             " to improve normalization to proper probability.")
-    prob_mat[prob_mat<=10] = 10
+    prob_mat[prob_mat <= minimum_time] = minimum_time
   } else {warning("Suggest setting minimum_time, otherwise probability  normalization may be overly skewed.")}
 
   # Apply transformation
@@ -66,13 +67,13 @@ initial_access_surface <- function(
   }
 
   if(!is.null(n_fac_limit)) {
-
-    for(i in 1:rnow(prob_mat)){
+    message("Limiting access to ", n_fac_limit, " nearest facilities.")
+    for(i in 1:nrow(prob_mat)){
+      # print(i)
       vec <- order(prob_mat[i,], decreasing = T)
-      prob_mat[i,-vec[-(1:n_fac_limit)]] = 0
+      prob_mat[i,-vec[(1:n_fac_limit)]] = 0
       prob_mat[i,] = prob_mat[i,]/sum(prob_mat[i,])
     }
-
   }
 
   # Normalize
