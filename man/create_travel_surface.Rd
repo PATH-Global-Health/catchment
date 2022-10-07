@@ -53,9 +53,6 @@ create_travel_surface(
 
 \item{...}{}
 }
-\value{
-
-}
 \description{
 Create travel time surfaces
 }

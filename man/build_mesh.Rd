@@ -11,9 +11,6 @@ build_mesh(pixel_locs, mesh.args = mesh.args, verbose = F, ...)
 
 \item{mesh.args}{A list contains arugments from INLA::inla.mesh.2d()}
 }
-\value{
-
-}
 \description{
 Create INLA mesh
 }
