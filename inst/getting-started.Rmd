@@ -1,0 +1,137 @@
+---
+title: "getting-started"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{getting-started}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>", 
+  eval = FALSE
+)
+```
+
+```{r setup}
+library(raster)
+library(sf)
+library(catchment)
+```
+
+## Loading data
+
+To get started with the catchment package, we first need to load the required data. At a minimum, we will need a locations for our health facilities, an initial weight for each health facility to use as a proxy for attractiveness, and a shapefile to determine the boundaries. We will also need a raster of the population that we want to distribute. 
+
+We have provided some data within the package for this tutorial to get started. 
+
+```{r load-data}
+data("example_shp")
+data("example_pop")
+data("example_locs")
+```
+
+Next we will also need a friction surface, which we will use to calculate travel times from each pixel to all health facilty locations. In this tutorial, we can use the friction surface developed by the Malaria Atlas Project. Our team has written a function for pulling this surface in a package called [PATHtools](https://github.com/PATH-Global-Health/PATHtools), which you can install via Github.
+
+We also need to resample the friction raster so that it aligns with out population raster.
+
+```{r fric-surface}
+# devtools::install_github("PATH-Global-Health/PATHtools")
+fric <- PATHtools::get_friction_surface(example_shp) 
+fric <- raster::resample(fric, example_pop, fun = "mean")
+```
+
+Finally, we need to designate an output location. For this tutorial we will use a temporary folder.  
+
+```{r}
+f <- tempfile()
+```
+
+
+## Travel time surfaces
+
+Next, we need to create travel time rasters for each health facility using the friction surface. This can be a time consuming process depending on the number of health facilities, size of the boundary file, and resolution of our population raster. Therefore, we prefer to save the raster locally so that if we need that then only need to be render once.
+
+The `create_travel_surface()` function can be run on parallel on multiple CPU cores. Be sure to check how many cores your computer has available using `parallel::detectCores()', and keep in mind that this may require significant RAM. 
+
+```{r}
+# Create a folder to save travel time (tt) rasters
+fs::dir_create(fs::path(f, "tt"))
+
+# Generate travel time rasters
+create_travel_surface(
+  friction_surface = fric, 
+  extent_file = example_pop,
+  points = example_locs, 
+  id_col = "label", 
+  x_col = "x",
+  y_col = "y",
+  output_dir = fs::path(f, "tt"), individual_surfaces = T, parallel = T, cores = 5)
+
+```
+Next, we need to organize the travel time values into a matrix, where each column is a health facility and each row is a pixel from our population raster. To reduce the computation burden, when only want to keep pixel that have population values, this helps make the matrix sparse and improves modeling fitting. 
+
+We can use the `travel_mat_from_folder()` to generate this matrix. Note that this function will pull in values for all `.tif` files in the reference folder, so it is important to keep the travel time rasters in their own folder. Also, health facility will be organized in alphanumeric order based on the provided `id_col`. This ensure that we maintain alignment between files. 
+
+```{r}
+## Organize travel time matrix
+tmat <- travel_mat_from_folder(dir = fs::path(f, "tt"), 
+                               reference = example_pop)
+```
+
+## Initial probability surface
+
+Before fitting the model, we first generate an initial access probably based on the travel times. This is done using `initial_access_surface()` function. By default, this is done by assuming that access is proportional to the inverse sqaured distance. In a future vignette we will describe how this can be adjusted. 
+
+In improve model fitting performance, we provide functions for making this matrix sparse. These include setting limits on how many facilities can be selected (n_fac_limit) and forcing remote pixels to the nearest location (force_threshold). Finally there is a argument for formatting the matrix in to a classification of Sparse Matrix, but this depends on having specific C++ libraries avaiable, so it can be turned off. 
+
+```{r}
+## Create initial accessbility matrix
+pmat <- initial_access_surface(
+  tmat,
+  n_fac_limit = 10, 
+  force_threshold = 300, 
+  sparse = FALSE)
+```
+## Fitting the catchment model
+
+Before fitting the catchment model, we can organize our data using the `prepare_data()` function. This function standardizes the input data, and generates the INLA mesh
+
+```{r}
+## Organize input data
+catch_dat <- prepare_data(
+  prob_mat_init = pmat, 
+  pop_raster = example_pop,
+  location_data = example_locs, 
+  mesh.args = list(cutoff = 0.1,max.edge = c(0.1, 4)))
+```
+
+Before fitting the model, we should first check the INLA mesh to make sure that it is not too dense or sparse. These parameters can be adjusted using the `mesh.args` argument. 
+
+```{r}
+## View INLA mesh
+plot(catch_dat$mesh)
+plot(example_shp, add = T, border = "red", lwd = 2)
+points(example_locs$x, example_locs$y)
+```
+
+Now we can fit that catchment model. Please keep in mind that this is a computational intensive model that will require significant RAM depending on the area of interest, number of health facilities, and population resolution.
+
+```{r message=FALSE, warning=FALSE, results='hide'}
+## Fit catchment model
+mod <- catchment_model(catch_dat)
+```
+
+## Post-processing results
+
+Once the model is fit, we can use the `catchment_populations()` function to generate the estimate catchment population for each facility. 
+
+```{r}
+## Estimated catchment populations
+catchment_populations(mod)
+example_locs$est_pop <- catchment_populations(mod)
+```
+
+We are actively developing tools for post-processing, including extracting the fitted weights for each facility, assessing model fit, and visualizing catchments. Please look for future updates!
