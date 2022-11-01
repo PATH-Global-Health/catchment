@@ -12,7 +12,7 @@ bnd <- PATHtoolsZambia::retrieve("province-shp") %>%
   st_geometry()
 
 (p <- ggplot() +
-    geom_sf(data = bnd, fill = "#464F60", color = "black", size = 0.1) +
+    # geom_sf(data = bnd, fill = "#464F60", color = "black", size = 0.1) +
     theme_void() +
     theme_transparent())
 
