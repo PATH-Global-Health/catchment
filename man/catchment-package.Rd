@@ -6,6 +6,8 @@
 \alias{catchment-package}
 \title{catchment: Weighted Spatial Point Catchment Modelling}
 \description{
+\if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
+
 Create gravity-style catchment model for spatial point data, using individual weights and rasterized gridded data.
 }
 \seealso{
