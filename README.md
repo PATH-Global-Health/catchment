@@ -6,7 +6,7 @@
 <!-- badges: start -->
 <!-- badges: end -->
 
-The goal of catchment is to …
+The goal of catchment is to use gravity models to estimate health facility catchment populations. 
 
 ## Installation
 
