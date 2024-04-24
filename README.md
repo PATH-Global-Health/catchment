@@ -6,7 +6,10 @@
 <!-- badges: start -->
 <!-- badges: end -->
 
-The goal of catchment is to use gravity models to estimate health facility catchment populations. 
+The goal of catchment is to estimate health facility catchment
+populations using Bayesian gravity models. The primary purpose of these
+population estimates is to calculate catchment-level incidence rates
+using routine reporting data from health information systems.
 
 ## Installation
 
