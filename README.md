@@ -46,7 +46,8 @@ data("example_pop")
 data("example_locs")
 
 ## Get friction surface
-fric <- PATHtools::get_friction_surface(example_shp) |> 
+fric <- PATHtools::get_friction_surface(example_shp) |>
+  raster::raster() |>
   raster::resample(example_pop, fun = "mean")
 
 ## Create output folder
