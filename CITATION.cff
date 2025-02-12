@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Millar"
+    given-names: "Justin"
+    orcid: "https://orcid.org/0000-0002-6866-7544"
+  - family-names: "Arambepola"
+    given-names: "Rohan"
+title: "catchment: Weighted Spatial Point Catchment Modelling"
+version: 0.0.0.9000
+date-released: "2024-03-19"
+url: "https://github.com/PATH-Global-Health/catchment"
+abstract: "Create gravity-style catchment model for spatial point data, using individual weights and rasterized gridded data."
+type: software
+license: MIT 
