@@ -39,15 +39,18 @@ initial_access_surface <- function(
 
   # Apply transformation
 
-  if(transform == "inverse_dist_squared") {
-    message("Applying inverse distance squared transformation.")
-    prob_mat <- 1/prob_mat^2
-  } else if(class(transform) == "numeric") {
-    message("Applying inverse distance transformation with user-defined exponential term.")
-    prob_mat <- 1/prob_mat^transform
-  } else {
+  if(is.function(transform)) {
     message("Applying user-defined transformation.")
     prob_mat <- transform(prob_mat)
+  } else if(is.numeric(transform)) {
+    message("Applying inverse distance transformation with user-defined exponential term.")
+    prob_mat <- 1/prob_mat^transform
+  } else if(identical(transform, "inverse_dist_squared")) {
+    message("Applying inverse distance squared transformation.")
+    prob_mat <- 1/prob_mat^2
+  } else {
+    stop("`transform` must be \"inverse_dist_squared\", a numeric exponent, ",
+         "or a function.")
   }
 
   # Apply force threshold

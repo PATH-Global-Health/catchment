@@ -45,6 +45,11 @@ catchment_model <- function(dat, time = T) {
 
 make_model_object <- function(dat) {
 
+  if (!requireNamespace("INLA", quietly = TRUE)) {
+    stop("Package 'INLA' is required for make_model_object(). Install it from ",
+         "<https://www.r-inla.org/download-install>.", call. = FALSE)
+  }
+
   alpha <- 2  # Smoothness parameter (Matern kernel=2)
   nu <- alpha - 1
   spde <- (INLA::inla.spde2.matern(mesh=dat$mesh, alpha=alpha)$param.inla)[c("M0","M1","M2")]
@@ -76,12 +81,12 @@ make_model_object <- function(dat) {
   )
 
   parameters <-  list(
-    beta_0=runif(1, -1, 1),
+    beta_0=stats::runif(1, -1, 1),
     S=rep(0, n_s),  # Field values on the mesh (vector for static, matrix for dynamic)
     # beta=rnorm(n_covs),
     log_rho=0,
     log_sigma=0,
-    log_hf_mass = rep(0,  length(dat$weight)))
+    log_hf_mass = rep(0,  length(dat$weights)))
 
   obj <- TMB::MakeADFun(
     data = input_data,

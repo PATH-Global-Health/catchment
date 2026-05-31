@@ -3,7 +3,10 @@
 ^catchment\.Rproj$
 ^LICENSE\.md$
 ^README\.Rmd$
-^inst$
+^inst/generate-test-data\.R$
+^inst/hex\.R$
 ^_pkgdown\.yml$
 ^docs$
 ^pkgdown$
+^\.claude$
+^CITATION\.cff$

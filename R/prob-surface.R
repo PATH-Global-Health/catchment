@@ -5,9 +5,9 @@
 #' @param mod Catchment model object
 #' @param id_label A character string containing the label ID for the specified location
 #'
-#' @importFrom raster values
+#' @importFrom terra values
 #'
-#' @return A RasterLayer object
+#' @return A [terra::SpatRaster] object
 #' @export
 #'
 get_prob_raster <- function(mod, id_label) {
@@ -27,14 +27,18 @@ get_prob_raster <- function(mod, id_label) {
     prob_mat_new[i,] <- prob_mat_new[i,]/sum(prob_mat_new[i,])
   }
 
-  # Check normalization
-  # summary(rowSums(prob_mat_new))
-
   # Get selected probabilty surface
   id <- which(mod$data$loc_labels == id_label)
   prob_surface <- mod$data$pop_raster
-  raster::values(prob_surface)[!is.na(raster::values(prob_surface))] <- prob_mat_new[,id]
-  names(prob_surface) = "access_probability"
-  # plot(prob_surface)
+
+  # Match the valid-pixel mask used in prepare_data() (non-NA and > 0)
+  pop_vals <- terra::values(prob_surface, mat = FALSE)
+  valid <- !is.na(pop_vals) & pop_vals > 0
+
+  out_vals <- rep(NA_real_, length(pop_vals))
+  out_vals[valid] <- prob_mat_new[, id]
+  terra::values(prob_surface) <- out_vals
+
+  names(prob_surface) <- "access_probability"
   return(prob_surface)
 }

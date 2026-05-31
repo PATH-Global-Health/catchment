@@ -10,21 +10,23 @@
 
 shift_coord <- function(org_coords, valid_coords) {
 
-  n <- nrow(org_coords)
+  # Work with matrices so indexing returns numeric scalars, not data frame rows.
+  org_mat <- as.matrix(org_coords)
+  valid_mat <- as.matrix(valid_coords)
+
+  n <- nrow(org_mat)
   x <- y <- numeric(length = n)
 
   for(i in 1:n){
-    new_loc <-  valid_coords[which.min(
-      (valid_coords[,1]-org_coords[i,1])^2 +
-        (valid_coords[,2]-org_coords[i,2])^2),]
-
-    x[i] <- new_loc[1]
-    y[i] <- new_loc[2]
+    j <- which.min((valid_mat[, 1] - org_mat[i, 1])^2 +
+                     (valid_mat[, 2] - org_mat[i, 2])^2)
+    x[i] <- valid_mat[j, 1]
+    y[i] <- valid_mat[j, 2]
   }
   out <- cbind(x, y)
 
   # If input is a dataframe, return a dataframe with the same column names
-  if(class(org_coords) == "data.frame") {
+  if(inherits(org_coords, "data.frame")) {
     out <- as.data.frame(out)
     names(out) <- names(org_coords)
   }

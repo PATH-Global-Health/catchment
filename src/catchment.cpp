@@ -97,8 +97,6 @@ Type objective_function<Type>::operator() ()
     if(which_not_NA(i)){
       if(case_hf(i) > 0){
         f -= dpois(Y_hf(i), case_hf(i), true);
-      }else{
-        std::cout<<i<<"\n";
       }
     }
   }

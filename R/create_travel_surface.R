@@ -1,36 +1,37 @@
-
-
 #' Create travel time surfaces
 #'
-#' @param friction_surface A raster containing the travel cost per pixel.
-#' @param points A dataframe containing fields for LABEL, X, and Y for point-level features.
-#' @param extent_file A raster or shapefile used to define extent of points and friction surface.
-#' @param id_col A character string corresponding to the column in points dataframe for LABEL field.
-#' @param x_col A character string corresponding to the column in points dataframe for x coordinate field.
-#' @param y_col A character string corresponding to the column in points dataframe for y coordinate field.
-#' @param output_dir A character string for output directory (rasters and intermediate outputs).
-#' @param clip_flag TRUE/FALSE: Should the friction surface extent be clipped?
-#' @param transition_matrix_exists_flag TRUE/FALSE: Has the already been constructed, must be in output_dir.
-#' @param individual_surfaces TRUE/FALSE: Should individual travel surface be created for each point?
-#' @param parallel TRUE/FALSE: Should individual surfaces be created using parallel processing?
-#' @param cores an integer defining the number of CPU cores used for parallel processing
-#' @param check_existing TRUE/FALSE: Should rasters with LABEL in the output_dir be ignored?
-#' @param overwrite TRUE/FALSE: Should rasters in output_dir be overwritten?
-#' @param ...
+#' Computes accumulated cost-distance (travel time) surfaces from a friction
+#' surface using [terra::costDist()]. Either a single surface giving the travel
+#' time to the nearest point, or one surface per point, can be produced.
 #'
-#' @importFrom raster raster extent projectRaster crop writeRaster
-#' @importFrom sp proj4string
-#' @importFrom gdistance transition geoCorrection accCost
-#' @importFrom parallel detectCores
-#' @importFrom foreach foreach %dopar%
-#' @importFrom doSNOW registerDoSNOW
-#' @importFrom snow makeSOCKcluster stopCluster
+#' @param friction_surface A [terra::SpatRaster] (or path to a raster file)
+#'   containing the travel cost per unit distance (e.g. minutes per metre).
+#' @param points A data frame (or path to a CSV) containing label, x, and y
+#'   fields for the point features.
+#' @param extent_file A [terra::SpatRaster], an [sf::sf] polygon object, or a
+#'   path to a raster (`.tif`) or shapefile (`.shp`) used to define the extent
+#'   to which the friction surface is cropped. If `NA`, the full friction
+#'   surface extent is used.
+#' @param id_col A character string naming the label column in `points`. Used to
+#'   name the individual surface files. Must be unique per point.
+#' @param x_col A character string naming the x coordinate column in `points`.
+#' @param y_col A character string naming the y coordinate column in `points`.
+#' @param output_dir A character string for the output directory.
+#' @param clip_flag TRUE/FALSE: use the exact extent of `extent_file` (TRUE) or
+#'   a slightly expanded extent (FALSE, the default) when cropping.
+#' @param individual_surfaces TRUE/FALSE: create one surface per point (TRUE) or
+#'   a single surface to the nearest point (FALSE).
+#' @param check_existing TRUE/FALSE: skip points whose output file already
+#'   exists in `output_dir`.
+#' @param overwrite TRUE/FALSE: overwrite existing output rasters.
+#' @param ... Additional arguments (currently unused).
+#'
+#' @importFrom terra rast costDist crop project ext vect cellFromXY writeRaster
 #' @importFrom fs path
 #'
 #' @export
-#' @return
-#'
-
+#' @return Invisibly returns the output directory. Rasters are written to
+#'   `output_dir`.
 create_travel_surface <- function(friction_surface,
                                   points,
                                   extent_file = NA,
@@ -38,231 +39,148 @@ create_travel_surface <- function(friction_surface,
                                   x_col = "x",
                                   y_col = "y",
                                   clip_flag = FALSE,
-                                  transition_matrix_exists_flag = FALSE,
                                   individual_surfaces = FALSE,
                                   output_dir = NA,
-                                  parallel = TRUE,
-                                  cores = floor(parallel::detectCores() / 2),
                                   check_existing = FALSE,
                                   overwrite = FALSE, ...) {
-  std_projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 
-  # Creating extent for the accessibility surfaces ----------
-  ## we will use either a raster or a polygon to define the required extent for
-  ## the new rasters
+  std_crs <- "EPSG:4326"
 
-  if (grepl("shp", extent_file)) {
-    message("Loading shapefile")
-    poly <- rgdal::readOGR(
-      dsn = extent_file,
-      layer = gsub(".*/(.*).shp", "\\1", extent_file)
-    )
-
-    # need to make sure our polygon has the right projection
-    if (sp::proj4string(poly) != std_projection) {
-      message("Reprojecting shapefile")
-      poly <- sp::spTransform(poly, sp::CRS(std_projection))
-    }
-
-    ## if your general_shapefile path is directly to a known extent, you don't
-    ## need to calculate a new extent
-    if (clip_flag == TRUE) {
-      new_extent <- as(raster::extent(extent_matrix), "SpatialPolygons")
-    } else {
-      ## calculates some boundary around the polygon of interest
-      extent_matrix <- as.matrix(extent(poly))
-      extent_matrix_signs <- extent_matrix / abs(extent_matrix)
-      extent_matrix_multiplier <- as.data.frame(extent_matrix_signs) %>%
-        dplyr::mutate(
-          xmin = dplyr::case_when(
-            min[1] > 0 ~ 0.995,
-            min[1] < 0 ~ 1.005
-          ),
-          xmax = dplyr::case_when(
-            max[1] > 0 ~ 1.005,
-            max[1] < 0 ~ 0.995
-          ),
-          ymin = dplyr::case_when(
-            min[2] > 0 ~ 0.99,
-            min[2] < 0 ~ 1.01
-          ),
-          ymax = dplyr::case_when(
-            max[2] > 0 ~ 1.01,
-            max[2] < 0 ~ 0.99
-          )
-        ) %>%
-        dplyr::slice(1) %>%
-        dplyr::select(xmin, ymin, xmax, ymax)
-
-      ### this defines the boundary, need to be careful with this
-      extent_matrix <- extent_matrix * as.numeric(extent_matrix_multiplier)
-      new_extent <- as(raster::extent(extent_matrix), "SpatialPolygons")
-    }
-
-    sp::proj4string(new_extent) <- sp::proj4string(poly)
-  } else if ("RasterLayer" %in% class(extent_file)) {
-    raster <- extent_file
-    if (sp::proj4string(raster) != std_projection) {
-      message("Reprojecting raster")
-      raster <- raster::projectRaster(raster, crs = std_projection)
-    }
-
-    new_extent <- as(raster::extent(raster), "SpatialPolygons")
-    sp::proj4string(new_extent) <- sp::proj4string(raster)
-  } else if (grepl("tif", extent_file)) {
-    message("Loading raster")
-
-    ## load in the raster and ensure it has the right projection
-    raster <- raster::raster(extent_file)
-    if (sp::proj4string(raster) != std_projection) {
-      message("Reprojecting raster")
-      raster <- raster::projectRaster(raster, crs = std_projection)
-    }
-
-    new_extent <- as(raster::extent(raster), "SpatialPolygons")
-    sp::proj4string(new_extent) <- sp::proj4string(raster)
-  } else {
-    stop("File must be a shapefile or raster")
-  }
-
-
-  # Defining the spatial template and creating new transition matrices ----
-  if (class(friction_surface) == "character") {
-    friction <- raster::raster(friction_surface)
-  } else {
+  # Load the friction surface --------------------------------------------------
+  if (is.character(friction_surface)) {
+    friction <- terra::rast(friction_surface)
+  } else if (inherits(friction_surface, "SpatRaster")) {
     friction <- friction_surface
-  }
-
-  fs1 <- crop(friction, new_extent)
-
-  # Apply geocorrections ----
-
-  # if the geo-corrected graph has already been made, loading it in saves time.
-  # Uses the same T.GC.filename as specified using the T.GC.filename variable.
-  # Else, make the graph and the geo-corrected version of the graph
-
-  if (transition_matrix_exists_flag) {
-    # Read in the transition matrix object if it has been pre-computed
-    message("Reading in transition matrix")
-    T.GC <- readRDS(fs::path(output_dir, "HF.T.GC.rds"))
   } else {
-    message("Calculating transition matrix")
-
-    T.filename <- fs::path(output_dir, "HF.T.rds")
-    T.GC.filename <- fs::path(output_dir, "HF.T.GC.rds")
-
-    # Make and geocorrect the transition matrix (i.e., the graph)
-    # Making the transition matrix is RAM intensive and can be very slow for large areas
-    Tr <- gdistance::transition(fs1, function(x) 1 / mean(x), 8)
-    saveRDS(Tr, T.filename)
-    T.GC <- gdistance::geoCorrection(Tr)
-    saveRDS(T.GC, T.GC.filename)
+    friction <- terra::rast(friction_surface)  # coerce RasterLayer etc.
   }
 
-  # Calculating the cost surface(s) -----------
+  if (is.na(terra::crs(friction)) || terra::crs(friction) == "") {
+    terra::crs(friction) <- std_crs
+  } else if (!terra::same.crs(friction, std_crs)) {
+    message("Reprojecting friction surface to ", std_crs)
+    friction <- terra::project(friction, std_crs)
+  }
 
-  # load the points file
-  if ("character" %in% class(points) == TRUE) {
-    points <- read.csv(file = points)
+  # Define the cropping extent -------------------------------------------------
+  new_extent <- .resolve_extent(extent_file, std_crs, clip_flag)
+
+  if (!is.null(new_extent)) {
+    friction <- terra::crop(friction, new_extent)
+  }
+
+  # Load the points ------------------------------------------------------------
+  if (is.character(points)) {
+    points <- utils::read.csv(file = points)
   } else {
-    points <- data.frame(points)
+    points <- as.data.frame(points)
+  }
+  n_points <- nrow(points)
+
+  coords <- as.matrix(points[, c(x_col, y_col)])
+  cells <- terra::cellFromXY(friction, coords)
+
+  if (anyNA(cells)) {
+    warning(sum(is.na(cells)), " point(s) fall outside the friction surface ",
+            "extent and will be skipped.")
   }
 
-  # For looping through all points, initialize this
-  temp <- dim(points)
-  n.points <- temp[1]
+  if (!is.na(output_dir) && !dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
 
-  ## we may be running this script for either:
-  ##        - one overall surface representing time to any HF
-  ##        - time to each individual HF
-
-
+  # Single surface: travel time to the nearest point ---------------------------
   if (!individual_surfaces) {
     message("Creating single accessibility surface.")
+    output_filename <- fs::path(output_dir, "HF_accessibility.tif")
 
-    # creating only one file
-    output.filename <- fs::path(output_dir, "HF_accessibility.tif")
+    target <- friction
+    valid_cells <- cells[!is.na(cells)]
+    target[valid_cells] <- 0
+    acc <- terra::costDist(target, target = 0)
 
-    # Convert the points into a matrix
-    xy.data.frame <- data.frame()
-    xy.data.frame[1:n.points, 1] <- points[, grep(x_col, names(points))]
-    xy.data.frame[1:n.points, 2] <- points[, grep(y_col, names(points))]
-    xy.matrix <- as.matrix(xy.data.frame)
-
-    # Run the accumulated cost algoritm to make the final output map
-    temp.raster <- gdistance::accCost(T.GC, xy.matrix)
-    plot(temp.raster)
-    # Write the resulting raster
-    raster::writeRaster(temp.raster, output.filename, overwrite = FALSE)
-  } else if (individual_surfaces) {
-    # looping over all of the points and calculating the time from all pixels
-    # to that point
-    HF_list <- unique(points[, which(names(points) %in% c(id_col))]) # get a vector of the HF_ids
-
-    if (n.points != length(HF_list)) {
-      stop("Error: the points do not have unique identifiers")
-    }
-
-    # Write distance rasters in parallel
-    if (parallel == TRUE) {
-      message("Setting up parallel processing on ", cores, " cores.")
-
-      # Check for previous versions and overwrite
-      if (overwrite == TRUE) {
-        fn <- list.files(output_dir, pattern = "*.tif$", full.names = TRUE)
-        if (length(fn) == 0) {
-          cat("No files to remove")
-        } else {
-          cat("Overwriting", length(fn), "files (in 5 seconds). \n")
-          Sys.sleep(5)
-          cat("Goodbye! \n")
-          file.remove(fn)
-        }
-      }
-
-      cl <- snow::makeSOCKcluster(cores)
-      doSNOW::registerDoSNOW(cl)
-
-      message("Creating accessibility surfaces.")
-
-      mypb <- txtProgressBar(
-        min = 0, max = n.points, initial = 0,
-        width = 80, style = 3
-      )
-      progress <- function(n) setTxtProgressBar(mypb, n)
-      opts <- list(progress = progress)
-
-      foreach::foreach(
-        i = 1:n.points,
-        .packages = c("gdistance", "raster"),
-        .options.snow = opts
-      ) %dopar% {
-        output.filename <- fs::path(output_dir, paste0(HF_list[i], ".tif"))
-
-        HF.coords <- c(points[i, x_col], points[i, y_col])
-        HF.raster <- gdistance::accCost(T.GC, HF.coords)
-
-        raster::writeRaster(HF.raster, output.filename, overwrite = TRUE)
-        gc()
-      }
-
-      close(mypb)
-      snow::stopCluster(cl)
-    } else {
-      message("Creating accessibility surfaces")
-      mypb <- txtProgressBar(min = 0, max = n.points, initial = 0, width = 80, style = 3)
-
-      for (i in 1:n.points) {
-        output.filename <- fs::path(output_dir, paste0(HF_list[i], ".tif"))
-
-        HF.coords <- c(points[i, x_col], points[i, y_col])
-        HF.raster <- gdistance::accCost(T.GC, HF.coords)
-
-        raster::writeRaster(HF.raster, output.filename, overwrite = TRUE)
-
-        setTxtProgressBar(mypb, i, label = i)
-      }
-      close(mypb)
-    }
+    terra::writeRaster(acc, output_filename, overwrite = overwrite)
+    return(invisible(output_dir))
   }
+
+  # Individual surfaces: one per point -----------------------------------------
+  labels <- points[[id_col]]
+  if (anyDuplicated(labels)) {
+    stop("Error: the points do not have unique identifiers in '", id_col, "'.")
+  }
+
+  message("Creating ", n_points, " accessibility surfaces.")
+  pb <- utils::txtProgressBar(min = 0, max = n_points, style = 3, width = 80)
+  on.exit(close(pb), add = TRUE)
+
+  for (i in seq_len(n_points)) {
+    output_filename <- fs::path(output_dir, paste0(labels[i], ".tif"))
+
+    if (check_existing && file.exists(output_filename)) {
+      utils::setTxtProgressBar(pb, i)
+      next
+    }
+
+    if (is.na(cells[i])) {
+      utils::setTxtProgressBar(pb, i)
+      next
+    }
+
+    target <- friction
+    target[cells[i]] <- 0
+    acc <- terra::costDist(target, target = 0)
+
+    terra::writeRaster(acc, output_filename, overwrite = overwrite)
+    utils::setTxtProgressBar(pb, i)
+  }
+
+  invisible(output_dir)
+}
+
+
+# Resolve a cropping extent (SpatExtent) from a raster, sf polygon, or file path.
+# Returns NULL when extent_file is NA (use full friction extent).
+.resolve_extent <- function(extent_file, std_crs, clip_flag) {
+
+  if (is.atomic(extent_file) && length(extent_file) == 1 && is.na(extent_file)) {
+    return(NULL)
+  }
+
+  if (inherits(extent_file, "SpatRaster")) {
+    r <- extent_file
+    if (!terra::same.crs(r, std_crs)) r <- terra::project(r, std_crs)
+    return(terra::ext(r))
+  }
+
+  if (inherits(extent_file, c("sf", "sfc", "SpatVector"))) {
+    v <- terra::vect(extent_file)
+    if (!terra::same.crs(v, std_crs)) v <- terra::project(v, std_crs)
+    return(.maybe_expand(terra::ext(v), clip_flag))
+  }
+
+  if (is.character(extent_file) && grepl("\\.shp$", extent_file)) {
+    message("Loading shapefile")
+    v <- terra::vect(extent_file)
+    if (!terra::same.crs(v, std_crs)) v <- terra::project(v, std_crs)
+    return(.maybe_expand(terra::ext(v), clip_flag))
+  }
+
+  if (is.character(extent_file) && grepl("\\.tif", extent_file)) {
+    message("Loading raster")
+    r <- terra::rast(extent_file)
+    if (!terra::same.crs(r, std_crs)) r <- terra::project(r, std_crs)
+    return(terra::ext(r))
+  }
+
+  stop("`extent_file` must be a SpatRaster, sf polygon, or a path to a ",
+       "shapefile or raster.")
+}
+
+
+# Expand a SpatExtent by a small relative margin unless clip_flag is TRUE.
+.maybe_expand <- function(e, clip_flag, frac = 0.005) {
+  if (clip_flag) return(e)
+  dx <- (e$xmax - e$xmin) * frac
+  dy <- (e$ymax - e$ymin) * frac
+  terra::ext(e$xmin - dx, e$xmax + dx, e$ymin - dy, e$ymax + dy)
 }

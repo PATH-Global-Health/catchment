@@ -30,10 +30,10 @@ prepare_data(
 
 \item{y_col}{A character for the Y column}
 
-\item{...}{}
+\item{mesh.args}{A list of arguments passed to [build_mesh()].}
 }
 \value{
-a list.
+a list with class `catchment_data`.
 }
 \description{
 Preparing input data from catchment model

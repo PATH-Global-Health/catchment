@@ -7,9 +7,16 @@
 build_mesh(pixel_locs, mesh.args = mesh.args, verbose = F, ...)
 }
 \arguments{
-\item{pixel_locs}{A two-column matrix containing pixel coordinates}
+\item{pixel_locs}{A two-column matrix containing pixel coordinates.}
 
-\item{mesh.args}{A list contains arugments from INLA::inla.mesh.2d()}
+\item{mesh.args}{A list of arguments passed to [INLA::inla.mesh.2d()].}
+
+\item{verbose}{TRUE/FALSE: print the mesh arguments used.}
+
+\item{...}{Additional arguments (currently unused).}
+}
+\value{
+An `inla.mesh` object.
 }
 \description{
 Create INLA mesh

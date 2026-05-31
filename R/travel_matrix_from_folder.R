@@ -10,7 +10,7 @@
 #'
 #' @import progress
 #'
-#' @importFrom raster raster getValues
+#' @importFrom terra rast values
 #' @importFrom fs dir_ls
 #'
 travel_mat_from_folder <- function(
@@ -19,15 +19,16 @@ travel_mat_from_folder <- function(
   sparse    = TRUE,
   progress  = TRUE) {
 
+  ref_vals <- terra::values(reference, mat = FALSE)
+
   # Get matrix params
   if(sparse) {
-    valid_pix_index <- which(
-      !is.na(raster::getValues(reference)) & raster::getValues(reference) > 0)
+    valid_pix_index <- which(!is.na(ref_vals) & ref_vals > 0)
     n_pix <- length(valid_pix_index)
   } else {
     warning(
       "Retaining pixels with no population/predictive value will result in dense matrices and increased computational costs.")
-    valid_pix_index <- numeric(1, length = length(raster::getValues(reference)))
+    valid_pix_index <- seq_along(ref_vals)
     n_pix <- length(valid_pix_index)
   }
 
@@ -48,7 +49,7 @@ travel_mat_from_folder <- function(
       total = length(raster_list), width = 80)}
 
   for(i in 1:length(raster_list)){
-    tr <- raster::getValues(raster::raster(raster_list[i]))[valid_pix_index]
+    tr <- terra::values(terra::rast(raster_list[i]), mat = FALSE)[valid_pix_index]
     travel_matrix[,i] <- tr
     if(progress){pb$tick()}
   }

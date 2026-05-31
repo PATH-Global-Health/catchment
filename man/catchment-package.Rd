@@ -21,5 +21,10 @@ Useful links:
 \author{
 \strong{Maintainer}: Justin Millar \email{jmillar@path.org}
 
+Authors:
+\itemize{
+  \item Justin Millar \email{jmillar@path.org}
+}
+
 }
 \keyword{internal}

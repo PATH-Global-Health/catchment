@@ -3,18 +3,15 @@
 \docType{data}
 \name{example_shp}
 \alias{example_shp}
-\title{Example shapefile}
+\title{Example boundary}
 \format{
 ## `example_shp`
-A SpatialPolygons object with no features:
+An `sf` object with a single polygon feature (CRS EPSG:4326).
 }
 \source{
 <https://malariaatlas.org/malariaatlas-r-package-for-accessing-data/>
 }
-\usage{
-example_shp
-}
 \description{
-An example boundary shapefile containing the boundary of Kapiri Mposhi district in Zambia.
+An example boundary of Kapiri Mposhi district in Zambia.
 }
 \keyword{datasets}

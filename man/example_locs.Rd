@@ -11,16 +11,13 @@ A data frame with 100 rows and 4 columns:
   \item{label}{Unique identifier for each location}
   \item{x, y}{The longitude (x) and latitude (y) for each facility}
   \item{weight}{The initial weight used to estimate facility "attractiveness"}
-  ...
 }
 }
 \source{
-<>
-}
-\usage{
-example_locs
+Simulated for package examples.
 }
 \description{
-Simulated locations meant to represent health facility locations in Kapiri Mposhi disttict, Zambia.
+Simulated locations meant to represent health facility locations in Kapiri
+Mposhi district, Zambia.
 }
 \keyword{datasets}

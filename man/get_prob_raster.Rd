@@ -12,7 +12,7 @@ get_prob_raster(mod, id_label)
 \item{id_label}{A character string containing the label ID for the specified location}
 }
 \value{
-A RasterLayer object
+A [terra::SpatRaster] object
 }
 \description{
 Get access probability raster from catchment mode

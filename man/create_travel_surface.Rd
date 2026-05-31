@@ -12,47 +12,53 @@ create_travel_surface(
   x_col = "x",
   y_col = "y",
   clip_flag = FALSE,
-  transition_matrix_exists_flag = FALSE,
   individual_surfaces = FALSE,
   output_dir = NA,
-  parallel = TRUE,
-  cores = floor(parallel::detectCores()/2),
   check_existing = FALSE,
   overwrite = FALSE,
   ...
 )
 }
 \arguments{
-\item{friction_surface}{A raster containing the travel cost per pixel.}
+\item{friction_surface}{A [terra::SpatRaster] (or path to a raster file)
+containing the travel cost per unit distance (e.g. minutes per metre).}
 
-\item{points}{A dataframe containing fields for LABEL, X, and Y for point-level features.}
+\item{points}{A data frame (or path to a CSV) containing label, x, and y
+fields for the point features.}
 
-\item{extent_file}{A raster or shapefile used to define extent of points and friction surface.}
+\item{extent_file}{A [terra::SpatRaster], an [sf::sf] polygon object, or a
+path to a raster (`.tif`) or shapefile (`.shp`) used to define the extent
+to which the friction surface is cropped. If `NA`, the full friction
+surface extent is used.}
 
-\item{id_col}{A character string corresponding to the column in points dataframe for LABEL field.}
+\item{id_col}{A character string naming the label column in `points`. Used to
+name the individual surface files. Must be unique per point.}
 
-\item{x_col}{A character string corresponding to the column in points dataframe for x coordinate field.}
+\item{x_col}{A character string naming the x coordinate column in `points`.}
 
-\item{y_col}{A character string corresponding to the column in points dataframe for y coordinate field.}
+\item{y_col}{A character string naming the y coordinate column in `points`.}
 
-\item{clip_flag}{TRUE/FALSE: Should the friction surface extent be clipped?}
+\item{clip_flag}{TRUE/FALSE: use the exact extent of `extent_file` (TRUE) or
+a slightly expanded extent (FALSE, the default) when cropping.}
 
-\item{transition_matrix_exists_flag}{TRUE/FALSE: Has the already been constructed, must be in output_dir.}
+\item{individual_surfaces}{TRUE/FALSE: create one surface per point (TRUE) or
+a single surface to the nearest point (FALSE).}
 
-\item{individual_surfaces}{TRUE/FALSE: Should individual travel surface be created for each point?}
+\item{output_dir}{A character string for the output directory.}
 
-\item{output_dir}{A character string for output directory (rasters and intermediate outputs).}
+\item{check_existing}{TRUE/FALSE: skip points whose output file already
+exists in `output_dir`.}
 
-\item{parallel}{TRUE/FALSE: Should individual surfaces be created using parallel processing?}
+\item{overwrite}{TRUE/FALSE: overwrite existing output rasters.}
 
-\item{cores}{an integer defining the number of CPU cores used for parallel processing}
-
-\item{check_existing}{TRUE/FALSE: Should rasters with LABEL in the output_dir be ignored?}
-
-\item{overwrite}{TRUE/FALSE: Should rasters in output_dir be overwritten?}
-
-\item{...}{}
+\item{...}{Additional arguments (currently unused).}
+}
+\value{
+Invisibly returns the output directory. Rasters are written to
+  `output_dir`.
 }
 \description{
-Create travel time surfaces
+Computes accumulated cost-distance (travel time) surfaces from a friction
+surface using [terra::costDist()]. Either a single surface giving the travel
+time to the nearest point, or one surface per point, can be produced.
 }
