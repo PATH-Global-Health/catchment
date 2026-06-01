@@ -12,6 +12,10 @@
 #'
 catchment_model <- function(dat, time = T) {
 
+  if (!inherits(dat, "catchment_data"))
+    stop("`dat` must be a catchment_data object created by prepare_data().",
+         call. = FALSE)
+
   obj <- make_model_object(dat)
 
   message("Fitting model (Could take a while)...")

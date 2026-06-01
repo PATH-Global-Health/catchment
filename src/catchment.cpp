@@ -72,7 +72,6 @@ Type objective_function<Type>::operator() ()
 
 
 
-  Type prob_sum;
   //modify probabilities using weights
   for(int i=0; i<n_hf; i++){
     pixel_hf_probs.row(i) *= exp(log_hf_mass(i));
@@ -83,9 +82,6 @@ Type objective_function<Type>::operator() ()
     pixel_hf_probs.col(i) /= pixel_hf_probs.col(i).sum();
   }
 
-
-
-  Type pixel_pop_contr;
   vector<Type> case_vector;
 
   case_vector = exp(log_rate_pixel + beta_0) * pop_pixel;

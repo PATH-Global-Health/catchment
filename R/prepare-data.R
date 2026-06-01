@@ -23,18 +23,53 @@ prepare_data <- function(
   y_col = "y",
   mesh.args = NULL) {
 
-  # Extract components from location data
-  # weights <- location_data[, which(names(location_data) %in% c(weight_col))]
-  # loc_coords <- data.frame(
-  #   x = location_data[, which(names(location_data) %in% c(x_col))],
-  #   y = location_data[, which(names(location_data) %in% c(y_col))])
-  # loc_labels <- location_data[, which(names(location_data) %in% c(id_col))]
+  # --- Input validation -------------------------------------------------------
+
+  if (!inherits(pop_raster, "SpatRaster"))
+    stop("`pop_raster` must be a SpatRaster.", call. = FALSE)
+
+  if (!is.data.frame(location_data))
+    stop("`location_data` must be a data frame.", call. = FALSE)
+
+  for (col in c(id_col, weight_col, x_col, y_col)) {
+    if (!col %in% names(location_data))
+      stop("Column '", col, "' not found in `location_data`.", call. = FALSE)
+  }
 
   weights <- dplyr::pull(location_data, weight_col)
   loc_coords <- data.frame(
     x = dplyr::pull(location_data, x_col),
     y = dplyr::pull(location_data, y_col))
   loc_labels <- dplyr::pull(location_data, id_col)
+
+  n_fac <- nrow(location_data)
+
+  if (anyDuplicated(loc_labels))
+    stop("`id_col` values must be unique; duplicates found in '", id_col, "'.",
+         call. = FALSE)
+
+  if (!is.numeric(weights) || length(weights) != n_fac)
+    stop("`weight_col` must be a numeric column with one value per facility.",
+         call. = FALSE)
+
+  # Check that prob_mat_init columns/rows agree with n_fac.
+  # initial_access_surface(sparse=TRUE) → [n_hf x n_pixel] sparse Matrix;
+  # sparse=FALSE → [n_pixel x n_hf] dense matrix.
+  if (!inherits(prob_mat_init, "travel_mat")) {
+    if (inherits(prob_mat_init, "Matrix")) {
+      if (nrow(prob_mat_init) != n_fac)
+        stop("`prob_mat_init` has ", nrow(prob_mat_init),
+             " rows but `location_data` has ", n_fac,
+             " facilities (expected one row per facility for a sparse Matrix).",
+             call. = FALSE)
+    } else if (is.matrix(prob_mat_init)) {
+      if (ncol(prob_mat_init) != n_fac)
+        stop("`prob_mat_init` has ", ncol(prob_mat_init),
+             " columns but `location_data` has ", n_fac,
+             " facilities (expected one column per facility for a dense matrix).",
+             call. = FALSE)
+    }
+  }
 
   # Get pixel index
   pop_vals <- terra::values(pop_raster, mat = FALSE)
@@ -78,6 +113,30 @@ prepare_data <- function(
   return(out)
 
 
+}
+
+#' @export
+print.catchment_data <- function(x, ...) {
+  cat("catchment_data\n")
+  cat(" Facilities :", length(x$loc_labels), "\n")
+  cat(" Pop pixels :", length(x$pop_vec), "\n")
+  cat(" Mesh nodes :", nrow(x$mesh$loc), "\n")
+  cat(" Weight range:", round(min(x$weights, na.rm = TRUE), 1), "-",
+      round(max(x$weights, na.rm = TRUE), 1), "\n")
+  invisible(x)
+}
+
+#' @export
+summary.catchment_data <- function(object, ...) {
+  cat("catchment_data summary\n")
+  cat(" Facilities       :", length(object$loc_labels), "\n")
+  cat(" Pop pixels (>0)  :", length(object$pop_vec), "\n")
+  cat(" Total population :", round(sum(object$pop_vec)), "\n")
+  cat(" Mesh nodes       :", nrow(object$mesh$loc), "\n")
+  cat(" Facilities (NA)  :", sum(is.na(object$weights)), "\n")
+  cat(" Weight summary   :\n")
+  print(summary(object$weights))
+  invisible(object)
 }
 
 #' Create INLA mesh
