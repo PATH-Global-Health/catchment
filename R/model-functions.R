@@ -8,6 +8,8 @@
 #' Hessian is not positive-definite.
 #'
 #' @param dat A [catchment_data] object created by [prepare_data()].
+#' @param family Likelihood family: \code{"poisson"} (default) or \code{"nb"}
+#'   for negative binomial (opt-in overdispersion robustness).
 #' @param time TRUE/FALSE Print optimisation run time?
 #'
 #' @return A list of class \code{catchment_fit} containing:
@@ -19,13 +21,15 @@
 #'   }
 #' @export
 #'
-catchment_model <- function(dat, time = TRUE) {
+catchment_model <- function(dat, family = "poisson", time = TRUE) {
 
   if (!inherits(dat, "catchment_data"))
     stop("`dat` must be a catchment_data object created by prepare_data().",
          call. = FALSE)
 
-  obj <- make_model_object(dat)
+  family <- match.arg(family, c("poisson", "nb"))
+
+  obj <- make_model_object(dat, family = family)
 
   message("Fitting model (Could take a while)...")
   ptm <- proc.time()
@@ -61,10 +65,11 @@ catchment_model <- function(dat, time = TRUE) {
             "Standard errors may be unreliable.", call. = FALSE)
 
   out <- list(
-    obj  = obj,
-    fit  = fit,
-    sdr  = sdr,
-    data = dat
+    obj    = obj,
+    fit    = fit,
+    sdr    = sdr,
+    data   = dat,
+    family = family
   )
   class(out) <- c("catchment_fit", "list")
   return(out)
@@ -120,7 +125,9 @@ print.catchment_fit <- function(x, ...) {
   max_grad <- max(abs(x$obj$gr(x$fit$par)))
   pd_hess  <- if (!is.null(x$sdr)) x$sdr$pdHess else NA
 
+  fam_str <- if (!is.null(x$family)) x$family else "poisson"
   cat("catchment_fit\n")
+  cat(" Family     :", fam_str, "\n")
   cat(" Facilities :", length(x$data$loc_labels), "\n")
   cat(" Pop pixels :", length(x$data$pop_vec), "\n")
   cat(" Converged  :", x$fit$convergence == 0, "\n")
@@ -132,53 +139,79 @@ print.catchment_fit <- function(x, ...) {
 
 #' Constructing model object for catchment model
 #'
-#' @param dat A list with class(catchment_data)
+#' @param dat A list with class \code{catchment_data}.
+#' @param family Likelihood family: \code{"poisson"} or \code{"nb"}.
 #'
-#' @return A TMB list object
+#' @return A TMB AD function object.
 #' @export
 #'
-make_model_object <- function(dat) {
+make_model_object <- function(dat, family = "poisson") {
 
   if (!requireNamespace("INLA", quietly = TRUE)) {
     stop("Package 'INLA' is required for make_model_object(). Install it from ",
          "<https://www.r-inla.org/download-install>.", call. = FALSE)
   }
 
-  alpha <- 2  # Smoothness parameter (Matern kernel=2)
-  nu <- alpha - 1
-  spde <- (INLA::inla.spde2.matern(mesh = dat$mesh, alpha = alpha)$param.inla)[c("M0", "M1", "M2")]
+  family     <- match.arg(family, c("poisson", "nb"))
+  family_int <- if (family == "poisson") 0L else 1L
+
+  alpha   <- 2  # Smoothness parameter (Matern kernel=2)
+  nu      <- alpha - 1
+  spde    <- (INLA::inla.spde2.matern(mesh = dat$mesh, alpha = alpha)$param.inla)[c("M0", "M1", "M2")]
   A_pixel <- INLA::inla.spde.make.A(mesh = dat$mesh, loc = as.matrix(dat$pixel_coords))
-  n_s <- nrow(spde$M0)
+  n_s     <- nrow(spde$M0)
+
+  # Covariate matrices (zero-column = no covariates)
+  X_pixel     <- if (!is.null(dat$X_pixel)) dat$X_pixel else matrix(0.0, nrow = length(dat$pop_vec), ncol = 0L)
+  Z_hf        <- if (!is.null(dat$Z_hf))   dat$Z_hf    else matrix(0.0, nrow = length(dat$weights),  ncol = 0L)
+  n_pixel_cov <- ncol(X_pixel)
+  n_fac_cov   <- ncol(Z_hf)
 
   input_data <- list(
-    Y_hf = dat$weights,
-    spde = spde,
-    A_pixel = A_pixel,
-    pop_pixel = dat$pop_vec,
+    Y_hf           = dat$weights,
+    spde           = spde,
+    A_pixel        = A_pixel,
+    pop_pixel      = dat$pop_vec,
     pixel_hf_probs = Matrix::Matrix(t(dat$prob_mat_init), sparse = TRUE),
-    which_not_NA = dat$which_not_NA,
-    learn_hf_mass = 1L,
+    which_not_NA   = dat$which_not_NA,
+    learn_hf_mass  = 1L,
+    family         = family_int,
+    n_pixel_cov    = n_pixel_cov,
+    X_pixel        = X_pixel,
+    n_fac_cov      = n_fac_cov,
+    Z_hf           = Z_hf,
     # Prior parameters
-    log_rho_mean = log(5),
-    log_rho_sd = 0.5,
-    log_sigma_mean = -1,
-    log_sigma_sd = 0.5,
-    nu = nu,
+    log_rho_mean     = log(5),
+    log_rho_sd       = 0.5,
+    log_sigma_mean   = -1,
+    log_sigma_sd     = 0.5,
+    nu               = nu,
     log_hf_mass_mean = 0.0,
-    log_hf_mass_sd = 0.1
+    log_hf_mass_sd   = 0.1,
+    log_nb_phi_mean  = 2.0,   # prior centred on phi≈7 (moderate overdispersion)
+    log_nb_phi_sd    = 1.0
   )
 
   parameters <- list(
-    beta_0       = 0,
-    S            = rep(0, n_s),
-    log_rho      = 0,
-    log_sigma    = 0,
-    log_hf_mass  = rep(0, length(dat$weights))
+    beta_0      = 0,
+    S           = rep(0, n_s),
+    log_rho     = 0,
+    log_sigma   = 0,
+    log_hf_mass = rep(0, length(dat$weights)),
+    beta        = rep(0, n_pixel_cov),
+    gamma       = rep(0, n_fac_cov),
+    log_nb_phi  = 2.0             # start at prior mean
   )
+
+  # Fix log_nb_phi when using Poisson (not estimated)
+  tmb_map <- list()
+  if (family_int == 0L)
+    tmb_map$log_nb_phi <- factor(NA)
 
   obj <- TMB::MakeADFun(
     data       = input_data,
     parameters = parameters,
+    map        = tmb_map,
     random     = c("S", "log_hf_mass"),
     silent     = FALSE,
     DLL        = "catchment"

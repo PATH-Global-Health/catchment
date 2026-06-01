@@ -4,13 +4,15 @@
 \alias{make_model_object}
 \title{Constructing model object for catchment model}
 \usage{
-make_model_object(dat)
+make_model_object(dat, family = "poisson")
 }
 \arguments{
-\item{dat}{A list with class(catchment_data)}
+\item{dat}{A list with class \code{catchment_data}.}
+
+\item{family}{Likelihood family: \code{"poisson"} or \code{"nb"}.}
 }
 \value{
-A TMB list object
+A TMB AD function object.
 }
 \description{
 Constructing model object for catchment model

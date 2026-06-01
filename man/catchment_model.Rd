@@ -4,10 +4,13 @@
 \alias{catchment_model}
 \title{Fit catchment model}
 \usage{
-catchment_model(dat, time = TRUE)
+catchment_model(dat, family = "poisson", time = TRUE)
 }
 \arguments{
 \item{dat}{A [catchment_data] object created by [prepare_data()].}
+
+\item{family}{Likelihood family: \code{"poisson"} (default) or \code{"nb"}
+for negative binomial (opt-in overdispersion robustness).}
 
 \item{time}{TRUE/FALSE Print optimisation run time?}
 }

@@ -12,25 +12,42 @@ prepare_data(
   weight_col = "weight",
   x_col = "x",
   y_col = "y",
-  mesh.args = NULL
+  mesh.args = NULL,
+  pixel_covariates = NULL,
+  facility_covariates = NULL
 )
 }
 \arguments{
 \item{prob_mat_init}{A matrix object.}
 
-\item{pop_raster}{A raster object/}
+\item{pop_raster}{A raster object.}
 
-\item{location_data}{A dataframe object which contains point-level data, including coordinates, labels, and weights.}
+\item{location_data}{A dataframe object which contains point-level data,
+including coordinates, labels, and weights.}
 
-\item{id_col}{A character for the column in location_data that contains the labels for individual point. This should be a unique identifier (no duplicated values).}
+\item{id_col}{A character for the column in location_data that contains the
+labels for individual points.  Must be unique.}
 
-\item{weight_col}{A character for the column in location_data that contains the weights for each point.}
+\item{weight_col}{A character for the column in location_data that contains
+the weights (observed counts) for each facility.}
 
-\item{x_col}{A character for the X column}
+\item{x_col}{A character for the X column.}
 
-\item{y_col}{A character for the Y column}
+\item{y_col}{A character for the Y column.}
 
 \item{mesh.args}{A list of arguments passed to [build_mesh()].}
+
+\item{pixel_covariates}{Optional pixel-level (demand-side) covariates.
+Either a multi-layer [terra::SpatRaster] whose values are extracted at the
+same valid pixels as \code{pop_raster}, or a numeric matrix/data frame
+already aligned to those pixels (one row per valid pixel).  Column names
+become covariate names.  Pass \code{NULL} (default) for no pixel
+covariates.}
+
+\item{facility_covariates}{Optional facility-level (supply-side) covariates
+for the attraction mass term.  A numeric data frame or matrix with one row
+per facility, in the same order as \code{location_data}.  Pass \code{NULL}
+(default) for no facility covariates.}
 }
 \value{
 a list with class `catchment_data`.
