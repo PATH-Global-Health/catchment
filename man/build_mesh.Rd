@@ -9,14 +9,14 @@ build_mesh(pixel_locs, mesh.args = mesh.args, verbose = F, ...)
 \arguments{
 \item{pixel_locs}{A two-column matrix containing pixel coordinates.}
 
-\item{mesh.args}{A list of arguments passed to [INLA::inla.mesh.2d()].}
+\item{mesh.args}{A list of arguments passed to [fmesher::fm_mesh_2d_inla()].}
 
 \item{verbose}{TRUE/FALSE: print the mesh arguments used.}
 
 \item{...}{Additional arguments (currently unused).}
 }
 \value{
-An `inla.mesh` object.
+An `fm_mesh_2d` object (also of class `inla.mesh`).
 }
 \description{
 Create INLA mesh

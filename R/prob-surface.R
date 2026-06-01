@@ -17,15 +17,9 @@ get_prob_raster <- function(mod, id_label) {
   wgts <- unname(exp(op[names(op) == "log_hf_mass"]))
   prob_mat_new <- mod$data$prob_mat_init
 
-  # Re-weight
-  for(i in 1:length(wgts)){
-    prob_mat_new[,i] <- prob_mat_new[,i] * wgts[i]
-  }
-
-  # Normalize
-  for(i in 1:nrow(prob_mat_new)){
-    prob_mat_new[i,] <- prob_mat_new[i,]/sum(prob_mat_new[i,])
-  }
+  # Re-weight each facility (column) by its mass, then row-normalize
+  prob_mat_new <- prob_mat_new * rep(wgts, each = nrow(prob_mat_new))
+  prob_mat_new <- prob_mat_new / rowSums(prob_mat_new)
 
   # Get selected probabilty surface
   id <- which(mod$data$loc_labels == id_label)

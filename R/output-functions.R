@@ -17,13 +17,9 @@ catchment_populations <- function(mod){
 
   prob_mat_new <- mod$data$prob_mat_init
 
-  for(i in 1:length(mod$data$weights)){
-    prob_mat_new[,i] <- prob_mat_new[,i] * updated_wgts[i]
-  }
-
-  for(i in 1:nrow(prob_mat_new)){
-    prob_mat_new[i,] <- prob_mat_new[i,]/sum(prob_mat_new[i,])
-  }
+  # Re-weight each facility (column) by its updated mass, then row-normalize
+  prob_mat_new <- prob_mat_new * rep(updated_wgts, each = nrow(prob_mat_new))
+  prob_mat_new <- prob_mat_new / rowSums(prob_mat_new)
 
   out <- as.vector(t(prob_mat_new) %*% mod$data$pop_vec)
   names(out) <- mod$data$loc_labels

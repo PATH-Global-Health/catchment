@@ -26,6 +26,7 @@ BugReports: https://github.com/PATH-Global-Health/catchment/issues
 Depends:
     R (>= 4.1)
 Suggests:
+    fmesher,
     INLA,
     knitr,
     rmarkdown,

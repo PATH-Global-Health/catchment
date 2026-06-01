@@ -83,18 +83,18 @@ prepare_data <- function(
 #' Create INLA mesh
 #'
 #' @param pixel_locs A two-column matrix containing pixel coordinates.
-#' @param mesh.args A list of arguments passed to [INLA::inla.mesh.2d()].
+#' @param mesh.args A list of arguments passed to [fmesher::fm_mesh_2d_inla()].
 #' @param verbose TRUE/FALSE: print the mesh arguments used.
 #' @param ... Additional arguments (currently unused).
 #'
-#' @return An `inla.mesh` object.
+#' @return An `fm_mesh_2d` object (also of class `inla.mesh`).
 #' @export
 #'
 build_mesh <- function(pixel_locs, mesh.args = mesh.args, verbose = F, ...) {
 
-  if (!requireNamespace("INLA", quietly = TRUE)) {
-    stop("Package 'INLA' is required for build_mesh(). Install it from ",
-         "<https://www.r-inla.org/download-install>.", call. = FALSE)
+  if (!requireNamespace("fmesher", quietly = TRUE)) {
+    stop("Package 'fmesher' is required for build_mesh(). Install it from CRAN ",
+         "with install.packages(\"fmesher\").", call. = FALSE)
   }
 
   if(!is.null(mesh.args)) stopifnot(inherits(mesh.args, 'list'))
@@ -103,7 +103,7 @@ build_mesh <- function(pixel_locs, mesh.args = mesh.args, verbose = F, ...) {
                max.edge = c(0.4, 2))
   pars[names(mesh.args)] <- mesh.args
 
-  mesh <- INLA::inla.mesh.2d(
+  mesh <- fmesher::fm_mesh_2d_inla(
     loc = pixel_locs,
     max.edge = pars$max.edge,
     cutoff = pars$cutoff)

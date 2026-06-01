@@ -71,17 +71,17 @@ initial_access_surface <- function(
 
   if(!is.null(n_fac_limit)) {
     message("Limiting access to ", n_fac_limit, " nearest facilities.")
-    for(i in 1:nrow(prob_mat)){
-      # print(i)
-      vec <- order(prob_mat[i,], decreasing = T)
-      prob_mat[i,-vec[(1:n_fac_limit)]] = 0
-      prob_mat[i,] = prob_mat[i,]/sum(prob_mat[i,])
-    }
+    # Keep the n_fac_limit largest entries per row (ties broken by column index,
+    # matching order(decreasing = TRUE)); zero the rest, then row-normalize.
+    keep <- t(apply(prob_mat, 1,
+                    function(r) rank(-r, ties.method = "first") <= n_fac_limit))
+    prob_mat[!keep] <- 0
+    prob_mat <- prob_mat / rowSums(prob_mat)
   }
 
   # Normalize
   if(normalized){
-    for(i in 1:nrow(prob_mat)){prob_mat[i,] <- prob_mat[i,]/sum(prob_mat[i,])}
+    prob_mat <- prob_mat / rowSums(prob_mat)
   }
 
   class(prob_mat) <- class(prob_mat)[!class(prob_mat)%in%"travel_mat"]
