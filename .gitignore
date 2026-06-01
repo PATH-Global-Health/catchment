@@ -10,3 +10,4 @@
 *.dll
 docs
 inst/doc
+.claude
