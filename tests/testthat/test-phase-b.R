@@ -44,7 +44,8 @@ test_that("catchment_model returns a catchment_fit object", {
   skip_if_not_installed("INLA")
   mod <- .phase_b_model()
   expect_s3_class(mod, "catchment_fit")
-  expect_named(mod, c("obj", "fit", "sdr", "data", "family"), ignore.order = TRUE)
+  expect_named(mod, c("obj", "fit", "sdr", "data", "family", "decay", "decay_param"),
+               ignore.order = TRUE)
 })
 
 # --- sdreport ------------------------------------------------------------------

@@ -13,9 +13,18 @@ Type objective_function<Type>::operator() ()
   DATA_STRUCT(spde, spde_t);
   DATA_SPARSE_MATRIX(A_pixel);
   DATA_VECTOR(pop_pixel);
-  DATA_SPARSE_MATRIX(pixel_hf_probs);   // n_hf × n_pixel
+  DATA_SPARSE_MATRIX(pixel_hf_probs);   // n_hf × n_pixel (legacy precomputed-decay path)
   DATA_IVECTOR(which_not_NA);
   DATA_INTEGER(learn_hf_mass);
+
+  // Distance-decay: when use_cpp_decay==1 the decay function is applied in C++ to
+  // the clamped travel times in travel_hf (kept sparsity = force_threshold +
+  // n_fac_limit mask); when 0 the precomputed pixel_hf_probs is used unchanged.
+  DATA_INTEGER(use_cpp_decay);
+  DATA_SPARSE_MATRIX(travel_hf);        // n_hf × n_pixel clamped travel times
+  DATA_INTEGER(decay_type);             // 0 = power d^-a, 1 = exponential exp(-d/tau)
+  DATA_SCALAR(log_decay_mean);
+  DATA_SCALAR(log_decay_sd);
 
   // Likelihood family: 0 = Poisson (default), 1 = Negative Binomial
   DATA_INTEGER(family);
@@ -47,11 +56,12 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(beta);      // pixel covariate coefficients [n_pixel_cov]
   PARAMETER_VECTOR(gamma);     // facility covariate coefficients [n_fac_cov]
   PARAMETER(log_nb_phi);       // log NB size/dispersion (mapped fixed when family==0)
+  PARAMETER(log_decay);        // log decay param (a or tau; mapped fixed when not learned)
 
   Type f = 0;
 
-  int n_pixel = pixel_hf_probs.cols();
-  int n_hf    = pixel_hf_probs.rows();
+  int n_hf    = Y_hf.size();
+  int n_pixel = pop_pixel.size();
 
   Type sigma = exp(log_sigma);
   Type rho   = exp(log_rho);
@@ -86,17 +96,41 @@ Type objective_function<Type>::operator() ()
     log_rate_pixel += X_pixel * beta;
   }
 
+  // Build the working probability matrix [n_hf × n_pixel].  Either apply the
+  // decay function to the clamped travel times (kept sparsity preserved), or use
+  // the precomputed legacy matrix.  The per-pixel column-normalisation below
+  // makes the result invariant to any per-pixel scaling, so a power decay with
+  // exponent 2 reproduces the legacy 1/d^2 surface exactly.
+  SparseMatrix<Type> probs;
+  if(use_cpp_decay == 1){
+    probs = travel_hf;
+    Type dpar = exp(log_decay);
+    for(int k = 0; k < probs.outerSize(); ++k){
+      for(typename SparseMatrix<Type>::InnerIterator it(probs, k); it; ++it){
+        Type d = it.value();
+        if(decay_type == 0){
+          it.valueRef() = pow(d, -dpar);     // power: d^-a
+        } else {
+          it.valueRef() = exp(-d / dpar);    // exponential: exp(-d/tau)
+        }
+      }
+    }
+    f -= dnorm(log_decay, log_decay_mean, log_decay_sd, true);
+  } else {
+    probs = pixel_hf_probs;
+  }
+
   // Re-weight probability matrix by HF mass, then column-normalise
   for(int i = 0; i < n_hf; i++){
-    pixel_hf_probs.row(i) *= exp(log_hf_mass(i));
+    probs.row(i) *= exp(log_hf_mass(i));
   }
   for(int i = 0; i < n_pixel; i++){
-    pixel_hf_probs.col(i) /= pixel_hf_probs.col(i).sum();
+    probs.col(i) /= probs.col(i).sum();
   }
 
   vector<Type> case_vector = exp(log_rate_pixel + beta_0) * pop_pixel;
-  vector<Type> case_hf = pixel_hf_probs * case_vector;
-  vector<Type> pop_hf  = pixel_hf_probs * pop_pixel;
+  vector<Type> case_hf = probs * case_vector;
+  vector<Type> pop_hf  = probs * pop_pixel;
 
   // Likelihood
   for(int i = 0; i < n_hf; i++){

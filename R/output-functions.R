@@ -48,19 +48,41 @@ catchment_populations <- function(mod, uncertainty = FALSE) {
   }
 
   # --- Point estimate (original behaviour) ------------------------------------
-  obj_params   <- mod$obj$env$last.par.best
-  updated_wgts <- unname(exp(obj_params[names(obj_params) == "log_hf_mass"]))
-
-  prob_mat_new <- mod$data$prob_mat_init
-
-  # Re-weight each facility (column) by its updated mass, then row-normalise
-  prob_mat_new <- prob_mat_new * rep(updated_wgts, each = nrow(prob_mat_new))
-  prob_mat_new <- prob_mat_new / rowSums(prob_mat_new)
+  prob_mat_new <- .reconstruct_probs(mod)
 
   out <- as.vector(t(prob_mat_new) %*% mod$data$pop_vec)
   names(out) <- mod$data$loc_labels
 
   return(out)
+}
+
+
+# Internal: reconstruct the normalised [n_pixel x n_hf] probability matrix from a
+# fitted model, applying the *learned* decay (Phase D) so the point-estimate and
+# probability-raster outputs stay consistent with what the C++ template computed.
+# For decay == "none" this reproduces the legacy fixed-surface behaviour.
+.reconstruct_probs <- function(mod) {
+  op    <- mod$obj$env$last.par.best
+  mass  <- unname(exp(op[names(op) == "log_hf_mass"]))     # one per facility
+  decay <- if (!is.null(mod$decay)) mod$decay else "none"
+
+  if (decay == "none") {
+    pm <- as.matrix(mod$data$prob_mat_init)                # [n_pixel x n_hf]
+  } else {
+    dpar <- mod$decay_param                                # resolved by catchment_model()
+    pm   <- t(as.matrix(mod$data$travel_sparse))           # [n_pixel x n_hf]
+    nz   <- pm != 0
+    if (decay == "power") {
+      pm[nz] <- pm[nz] ^ (-dpar)
+    } else {
+      pm[nz] <- exp(-pm[nz] / dpar)
+    }
+  }
+
+  # Re-weight each facility (column) by its mass, then row-normalise (per pixel)
+  pm <- pm * rep(mass, each = nrow(pm))
+  pm <- pm / rowSums(pm)
+  pm
 }
 
 
@@ -86,14 +108,8 @@ get_prob_raster <- function(mod, id_label, uncertainty = FALSE) {
     stop("Pixel-level probability uncertainty is not yet implemented. ",
          "Use uncertainty = FALSE (the default).", call. = FALSE)
 
-  # Get updated probability matrix
-  op   <- mod$obj$env$last.par.best
-  wgts <- unname(exp(op[names(op) == "log_hf_mass"]))
-  prob_mat_new <- mod$data$prob_mat_init
-
-  # Re-weight each facility (column) by its mass, then row-normalise
-  prob_mat_new <- prob_mat_new * rep(wgts, each = nrow(prob_mat_new))
-  prob_mat_new <- prob_mat_new / rowSums(prob_mat_new)
+  # Get updated probability matrix (applies the learned decay when active)
+  prob_mat_new <- .reconstruct_probs(mod)
 
   # Get selected probability surface
   id           <- which(mod$data$loc_labels == id_label)

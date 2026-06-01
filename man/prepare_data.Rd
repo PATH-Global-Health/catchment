@@ -14,7 +14,10 @@ prepare_data(
   y_col = "y",
   mesh.args = NULL,
   pixel_covariates = NULL,
-  facility_covariates = NULL
+  facility_covariates = NULL,
+  minimum_time = 10,
+  force_threshold = 300,
+  n_fac_limit = NULL
 )
 }
 \arguments{
@@ -48,6 +51,12 @@ covariates.}
 for the attraction mass term.  A numeric data frame or matrix with one row
 per facility, in the same order as \code{location_data}.  Pass \code{NULL}
 (default) for no facility covariates.}
+
+\item{minimum_time, force_threshold, n_fac_limit}{Passed to
+[initial_access_surface()] when \code{prob_mat_init} is a raw
+\code{travel_mat}.  They also define the sparsity mask of the clamped travel
+template used by the C++ distance-decay path (Phase D); ignored when a
+pre-built probability matrix is supplied.}
 }
 \value{
 a list with class `catchment_data`.

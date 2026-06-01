@@ -10,6 +10,18 @@
 #' @param dat A [catchment_data] object created by [prepare_data()].
 #' @param family Likelihood family: \code{"poisson"} (default) or \code{"nb"}
 #'   for negative binomial (opt-in overdispersion robustness).
+#' @param decay Distance-decay family applied to travel time inside the model:
+#'   \code{"exponential"} (default, \code{exp(-d/tau)}), \code{"power"}
+#'   (\code{d^-a}), or \code{"none"} (use the precomputed decay baked into
+#'   \code{prob_mat_init}).  \code{"exponential"} and \code{"power"} require a
+#'   travel template (supply a raw travel matrix to [prepare_data()]); if absent
+#'   the fit falls back to \code{"none"} with a message.
+#' @param estimate_decay TRUE/FALSE: estimate the decay parameter (default
+#'   \code{TRUE}).  When \code{FALSE} it is fixed at \code{decay_init}.  Ignored
+#'   when \code{decay = "none"}.
+#' @param decay_init Initial (natural-scale) decay parameter: the exponent
+#'   \code{a} for \code{"power"} or the scale \code{tau} (minutes) for
+#'   \code{"exponential"}.  Defaults to 2 (power) or 60 (exponential).
 #' @param time TRUE/FALSE Print optimisation run time?
 #'
 #' @return A list of class \code{catchment_fit} containing:
@@ -21,15 +33,20 @@
 #'   }
 #' @export
 #'
-catchment_model <- function(dat, family = "poisson", time = TRUE) {
+catchment_model <- function(dat, family = "poisson",
+                            decay = "exponential", estimate_decay = TRUE,
+                            decay_init = NULL, time = TRUE) {
 
   if (!inherits(dat, "catchment_data"))
     stop("`dat` must be a catchment_data object created by prepare_data().",
          call. = FALSE)
 
   family <- match.arg(family, c("poisson", "nb"))
+  decay  <- match.arg(decay, c("exponential", "power", "none"))
 
-  obj <- make_model_object(dat, family = family)
+  obj <- make_model_object(dat, family = family, decay = decay,
+                           estimate_decay = estimate_decay,
+                           decay_init = decay_init)
 
   message("Fitting model (Could take a while)...")
   ptm <- proc.time()
@@ -64,12 +81,24 @@ catchment_model <- function(dat, family = "poisson", time = TRUE) {
     warning("Hessian is not positive definite. ",
             "Standard errors may be unreliable.", call. = FALSE)
 
+  # Resolved natural-scale decay parameter (a for power, tau for exponential).
+  decay_resolved <- attr(obj, "decay")
+  decay_param <- if (decay_resolved == "none") {
+    NA_real_
+  } else if ("log_decay" %in% names(fit$par)) {
+    exp(unname(fit$par["log_decay"]))          # estimated
+  } else {
+    exp(attr(obj, "log_decay_init"))           # fixed via map
+  }
+
   out <- list(
-    obj    = obj,
-    fit    = fit,
-    sdr    = sdr,
-    data   = dat,
-    family = family
+    obj         = obj,
+    fit         = fit,
+    sdr         = sdr,
+    data        = dat,
+    family      = family,
+    decay       = decay_resolved,
+    decay_param = decay_param
   )
   class(out) <- c("catchment_fit", "list")
   return(out)
@@ -141,11 +170,19 @@ print.catchment_fit <- function(x, ...) {
 #'
 #' @param dat A list with class \code{catchment_data}.
 #' @param family Likelihood family: \code{"poisson"} or \code{"nb"}.
+#' @param decay Distance-decay family: \code{"exponential"}, \code{"power"}, or
+#'   \code{"none"} (precomputed).  See [catchment_model()].
+#' @param estimate_decay TRUE/FALSE: estimate the decay parameter.
+#' @param decay_init Initial natural-scale decay parameter (\code{a} for power,
+#'   \code{tau} minutes for exponential); \code{NULL} uses the family default.
 #'
-#' @return A TMB AD function object.
+#' @return A TMB AD function object.  The resolved decay family is attached as
+#'   \code{attr(obj, "decay")}.
 #' @export
 #'
-make_model_object <- function(dat, family = "poisson") {
+make_model_object <- function(dat, family = "poisson",
+                              decay = "exponential", estimate_decay = TRUE,
+                              decay_init = NULL) {
 
   if (!requireNamespace("INLA", quietly = TRUE)) {
     stop("Package 'INLA' is required for make_model_object(). Install it from ",
@@ -154,6 +191,25 @@ make_model_object <- function(dat, family = "poisson") {
 
   family     <- match.arg(family, c("poisson", "nb"))
   family_int <- if (family == "poisson") 0L else 1L
+
+  # --- Resolve distance-decay configuration ----------------------------------
+  decay <- match.arg(decay, c("exponential", "power", "none"))
+  has_travel <- !is.null(dat$travel_sparse)
+  if (decay != "none" && !has_travel) {
+    message("No travel template found in `dat`; falling back to decay = ",
+            "\"none\" (precomputed surface). Pass a raw travel matrix to ",
+            "prepare_data() to learn the decay parameter.")
+    decay <- "none"
+  }
+
+  use_cpp_decay <- if (decay == "none") 0L else 1L
+  decay_type    <- if (decay == "power") 0L else 1L   # 1 = exponential / unused
+  if (is.null(decay_init)) decay_init <- if (decay == "power") 2 else 60
+  if (decay_init <= 0)
+    stop("`decay_init` must be positive.", call. = FALSE)
+  log_decay_init <- log(decay_init)
+  # Prior centred on the family default scale, loose SD.
+  log_decay_mean <- if (decay == "power") log(2) else log(60)
 
   alpha   <- 2  # Smoothness parameter (Matern kernel=2)
   nu      <- alpha - 1
@@ -167,14 +223,26 @@ make_model_object <- function(dat, family = "poisson") {
   n_pixel_cov <- ncol(X_pixel)
   n_fac_cov   <- ncol(Z_hf)
 
+  pixel_hf_probs <- Matrix::Matrix(t(dat$prob_mat_init), sparse = TRUE)
+
+  # Travel template for the C++ decay path. When decay == "none" it is unused in
+  # C++; pass the (well-formed) precomputed matrix as a placeholder so TMB can
+  # read it (an empty sparse matrix cannot be parsed).
+  travel_hf <- if (use_cpp_decay == 1L) dat$travel_sparse else pixel_hf_probs
+
   input_data <- list(
     Y_hf           = dat$weights,
     spde           = spde,
     A_pixel        = A_pixel,
     pop_pixel      = dat$pop_vec,
-    pixel_hf_probs = Matrix::Matrix(t(dat$prob_mat_init), sparse = TRUE),
+    pixel_hf_probs = pixel_hf_probs,
     which_not_NA   = dat$which_not_NA,
     learn_hf_mass  = 1L,
+    use_cpp_decay  = use_cpp_decay,
+    travel_hf      = travel_hf,
+    decay_type     = decay_type,
+    log_decay_mean = log_decay_mean,
+    log_decay_sd   = 1.0,
     family         = family_int,
     n_pixel_cov    = n_pixel_cov,
     X_pixel        = X_pixel,
@@ -200,13 +268,18 @@ make_model_object <- function(dat, family = "poisson") {
     log_hf_mass = rep(0, length(dat$weights)),
     beta        = rep(0, n_pixel_cov),
     gamma       = rep(0, n_fac_cov),
-    log_nb_phi  = 2.0             # start at prior mean
+    log_nb_phi  = 2.0,            # start at prior mean
+    log_decay   = log_decay_init
   )
 
   # Fix log_nb_phi when using Poisson (not estimated)
   tmb_map <- list()
   if (family_int == 0L)
     tmb_map$log_nb_phi <- factor(NA)
+
+  # Fix log_decay unless an active C++ decay is being estimated
+  if (use_cpp_decay == 0L || !estimate_decay)
+    tmb_map$log_decay <- factor(NA)
 
   obj <- TMB::MakeADFun(
     data       = input_data,
@@ -217,5 +290,7 @@ make_model_object <- function(dat, family = "poisson") {
     DLL        = "catchment"
   )
 
+  attr(obj, "decay") <- decay
+  attr(obj, "log_decay_init") <- log_decay_init
   return(obj)
 }

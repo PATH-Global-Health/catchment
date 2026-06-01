@@ -21,6 +21,11 @@
 #'   for the attraction mass term.  A numeric data frame or matrix with one row
 #'   per facility, in the same order as \code{location_data}.  Pass \code{NULL}
 #'   (default) for no facility covariates.
+#' @param minimum_time,force_threshold,n_fac_limit Passed to
+#'   [initial_access_surface()] when \code{prob_mat_init} is a raw
+#'   \code{travel_mat}.  They also define the sparsity mask of the clamped travel
+#'   template used by the C++ distance-decay path (Phase D); ignored when a
+#'   pre-built probability matrix is supplied.
 #'
 #' @return a list with class `catchment_data`.
 #' @export
@@ -36,7 +41,10 @@ prepare_data <- function(
   y_col = "y",
   mesh.args = NULL,
   pixel_covariates = NULL,
-  facility_covariates = NULL) {
+  facility_covariates = NULL,
+  minimum_time = 10,
+  force_threshold = 300,
+  n_fac_limit = NULL) {
 
   # --- Input validation -------------------------------------------------------
 
@@ -96,9 +104,20 @@ prepare_data <- function(
   # Population vector
   pop_vec <- pop_vals[valid_pix_index]
 
-  # Make sure initial probability matrix is sparse
+  # When a raw travel matrix is supplied, also build a clamped sparse travel
+  # template for the C++ decay path (Phase D).  Its sparsity pattern is taken
+  # directly from initial_access_surface() so it matches the legacy mask exactly.
+  travel_sparse <- NULL
   if(inherits(prob_mat_init, "travel_mat")){
-    prob_mat_init <- initial_access_surface(prob_mat_init)
+    travel_sparse <- .build_travel_sparse(prob_mat_init,
+                                          minimum_time = minimum_time,
+                                          force_threshold = force_threshold,
+                                          n_fac_limit = n_fac_limit)
+    prob_mat_init <- initial_access_surface(prob_mat_init,
+                                            minimum_time = minimum_time,
+                                            force_threshold = force_threshold,
+                                            n_fac_limit = n_fac_limit,
+                                            sparse = FALSE)
     }
   # if("access_mat" %in% class(prob_mat_init) & !"Matrix" %in% class(prob_mat_init)) {
   #   class(prob_mat_init) <- class(prob_mat_init)[!class(prob_mat)%in%"access_mat"]
@@ -131,7 +150,8 @@ prepare_data <- function(
     "loc_labels"  = loc_labels,
     "mesh"        = mesh,
     "X_pixel"     = X_pixel,
-    "Z_hf"        = Z_hf
+    "Z_hf"        = Z_hf,
+    "travel_sparse" = travel_sparse
   )
 
   class(out) <- c("catchment_data", "list")
@@ -177,6 +197,28 @@ summary.catchment_data <- function(object, ...) {
   cat(" Weight summary   :\n")
   print(summary(object$weights))
   invisible(object)
+}
+
+# Internal: build a clamped sparse travel-time template [n_hf × n_pixel] for the
+# C++ distance-decay path. Stored values are clamped travel times (minutes); the
+# sparsity pattern is taken from initial_access_surface()'s nonzero pattern so it
+# is identical to the legacy mask. Because the decay is monotone in travel time,
+# the kept set is decay-shape invariant, and a power decay with exponent 2
+# reproduces the legacy 1/d^2 surface exactly.
+.build_travel_sparse <- function(travel_matrix, minimum_time = 10,
+                                 force_threshold = 300, n_fac_limit = NULL) {
+  tt <- unclass(travel_matrix)            # [n_pixel × n_hf]
+  if (anyNA(tt)) tt[is.na(tt)] <- max(tt, na.rm = TRUE)
+  if (!is.null(minimum_time)) tt[tt <= minimum_time] <- minimum_time
+
+  leg <- suppressMessages(
+    initial_access_surface(travel_matrix, minimum_time = minimum_time,
+                           force_threshold = force_threshold,
+                           n_fac_limit = n_fac_limit, normalized = FALSE,
+                           sparse = FALSE)
+  )
+  tt[leg == 0] <- 0
+  Matrix::Matrix(t(tt), sparse = TRUE)    # [n_hf × n_pixel]
 }
 
 # Internal: validate and extract pixel-level covariates.

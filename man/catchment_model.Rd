@@ -4,13 +4,35 @@
 \alias{catchment_model}
 \title{Fit catchment model}
 \usage{
-catchment_model(dat, family = "poisson", time = TRUE)
+catchment_model(
+  dat,
+  family = "poisson",
+  decay = "exponential",
+  estimate_decay = TRUE,
+  decay_init = NULL,
+  time = TRUE
+)
 }
 \arguments{
 \item{dat}{A [catchment_data] object created by [prepare_data()].}
 
 \item{family}{Likelihood family: \code{"poisson"} (default) or \code{"nb"}
 for negative binomial (opt-in overdispersion robustness).}
+
+\item{decay}{Distance-decay family applied to travel time inside the model:
+\code{"exponential"} (default, \code{exp(-d/tau)}), \code{"power"}
+(\code{d^-a}), or \code{"none"} (use the precomputed decay baked into
+\code{prob_mat_init}).  \code{"exponential"} and \code{"power"} require a
+travel template (supply a raw travel matrix to [prepare_data()]); if absent
+the fit falls back to \code{"none"} with a message.}
+
+\item{estimate_decay}{TRUE/FALSE: estimate the decay parameter (default
+\code{TRUE}).  When \code{FALSE} it is fixed at \code{decay_init}.  Ignored
+when \code{decay = "none"}.}
+
+\item{decay_init}{Initial (natural-scale) decay parameter: the exponent
+\code{a} for \code{"power"} or the scale \code{tau} (minutes) for
+\code{"exponential"}.  Defaults to 2 (power) or 60 (exponential).}
 
 \item{time}{TRUE/FALSE Print optimisation run time?}
 }

@@ -4,15 +4,30 @@
 \alias{make_model_object}
 \title{Constructing model object for catchment model}
 \usage{
-make_model_object(dat, family = "poisson")
+make_model_object(
+  dat,
+  family = "poisson",
+  decay = "exponential",
+  estimate_decay = TRUE,
+  decay_init = NULL
+)
 }
 \arguments{
 \item{dat}{A list with class \code{catchment_data}.}
 
 \item{family}{Likelihood family: \code{"poisson"} or \code{"nb"}.}
+
+\item{decay}{Distance-decay family: \code{"exponential"}, \code{"power"}, or
+\code{"none"} (precomputed).  See [catchment_model()].}
+
+\item{estimate_decay}{TRUE/FALSE: estimate the decay parameter.}
+
+\item{decay_init}{Initial natural-scale decay parameter (\code{a} for power,
+\code{tau} minutes for exponential); \code{NULL} uses the family default.}
 }
 \value{
-A TMB AD function object.
+A TMB AD function object.  The resolved decay family is attached as
+  \code{attr(obj, "decay")}.
 }
 \description{
 Constructing model object for catchment model
