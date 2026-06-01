@@ -115,6 +115,11 @@ prepare_data <- function(
 
 }
 
+#' Print a catchment_data object
+#' @param x A \code{catchment_data} object.
+#' @param ... Further arguments (currently unused).
+#' @return Invisibly returns \code{x}.
+#' @method print catchment_data
 #' @export
 print.catchment_data <- function(x, ...) {
   cat("catchment_data\n")
@@ -126,6 +131,11 @@ print.catchment_data <- function(x, ...) {
   invisible(x)
 }
 
+#' Summarise a catchment_data object
+#' @param object A \code{catchment_data} object.
+#' @param ... Further arguments (currently unused).
+#' @return Invisibly returns \code{object}.
+#' @method summary catchment_data
 #' @export
 summary.catchment_data <- function(object, ...) {
   cat("catchment_data summary\n")

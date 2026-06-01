@@ -103,6 +103,8 @@ Type objective_function<Type>::operator() ()
 
   REPORT(case_hf);
   REPORT(pop_hf);
+  ADREPORT(case_hf);
+  ADREPORT(pop_hf);
   return(f);
 
 }

@@ -1,5 +1,6 @@
 # Run once to (re)generate the golden-master fixture used in test-golden-master.R.
-# Requires INLA and the package to be installed/loaded.
+# Run from the package root: Rscript inst/generate-golden-master.R
+# Uses devtools::load_all() so it always reflects the current source.
 library(catchment)
 
 pop <- example_pop()

@@ -4,16 +4,25 @@
 \alias{catchment_model}
 \title{Fit catchment model}
 \usage{
-catchment_model(dat, time = T)
+catchment_model(dat, time = TRUE)
 }
 \arguments{
-\item{dat}{A list created by prepare_data()}
+\item{dat}{A [catchment_data] object created by [prepare_data()].}
 
-\item{time}{TRUE/FALSE Print run time?}
+\item{time}{TRUE/FALSE Print optimisation run time?}
 }
 \value{
-A list from model output
+A list of class \code{catchment_fit} containing:
+  \describe{
+    \item{obj}{The TMB AD object.}
+    \item{fit}{The \code{nlminb} optimisation result.}
+    \item{sdr}{The [TMB::sdreport()] result, or \code{NULL} if it failed.}
+    \item{data}{The \code{catchment_data} list passed in.}
+  }
 }
 \description{
-Fit catchment model
+Fits the gravity-style catchment model and computes parameter uncertainty
+via [TMB::sdreport()].  Convergence is checked automatically and warnings are
+issued when the optimiser reports failure, the max gradient is large, or the
+Hessian is not positive-definite.
 }

@@ -4,14 +4,24 @@
 \alias{catchment_populations}
 \title{Get estimated catchment populations}
 \usage{
-catchment_populations(mod)
+catchment_populations(mod, uncertainty = FALSE)
 }
 \arguments{
-\item{mod}{Model object from catchment_model}
+\item{mod}{A \code{catchment_fit} object from [catchment_model()].}
+
+\item{uncertainty}{Logical (default \code{FALSE}).  If \code{TRUE}, return
+a data frame with standard errors and 95 \% confidence intervals
+propagated through the random effects via [TMB::sdreport()].}
 }
 \value{
-a named vector containing estimated catchment populations
+A named numeric vector (when \code{uncertainty = FALSE}) or a data
+  frame (when \code{uncertainty = TRUE}).
 }
 \description{
-Get estimated catchment populations
+Returns the estimated population served by each facility.  When
+\code{uncertainty = FALSE} (default) a named numeric vector of point
+estimates is returned, preserving the original behaviour.  When
+\code{uncertainty = TRUE} a data frame is returned with columns
+\code{label}, \code{estimate}, \code{se}, \code{lower}, and \code{upper}
+(95 \% approximate CI via delta method from [TMB::sdreport()]).
 }
