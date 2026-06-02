@@ -69,7 +69,12 @@ catchment_populations <- function(mod, uncertainty = FALSE) {
   if (decay == "none") {
     pm <- as.matrix(mod$data$prob_mat_init)                # [n_pixel x n_hf]
   } else {
-    dpar <- mod$decay_param                                # resolved by catchment_model()
+    # Use the SAME decay value the C++ template used (last.par.best) so the
+    # reconstruction matches obj$report() to machine precision. When the decay
+    # is fixed (mapped), log_decay is absent from last.par.best, so fall back to
+    # the resolved decay_param.
+    ld   <- op[names(op) == "log_decay"]
+    dpar <- if (length(ld)) exp(unname(ld)) else mod$decay_param
     pm   <- t(as.matrix(mod$data$travel_sparse))           # [n_pixel x n_hf]
     nz   <- pm != 0
     if (decay == "power") {

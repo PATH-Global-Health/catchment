@@ -81,6 +81,12 @@ catchment_model <- function(dat, family = "poisson",
     warning("Hessian is not positive definite. ",
             "Standard errors may be unreliable.", call. = FALSE)
 
+  # sdreport()'s finite-differencing leaves env$last.par at a perturbed point,
+  # so a bare obj$report() would reflect those perturbed values rather than the
+  # fitted optimum. Restore the optimum so every downstream report() consumer
+  # (posterior_predict(), loo_facility_cv(), etc.) sees the fitted parameters.
+  obj$env$last.par <- obj$env$last.par.best
+
   # Resolved natural-scale decay parameter (a for power, tau for exponential).
   decay_resolved <- attr(obj, "decay")
   decay_param <- if (decay_resolved == "none") {

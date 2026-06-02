@@ -6,18 +6,25 @@
 \title{Example location data}
 \format{
 ## `example_locs`
-A data frame with 100 rows and 4 columns:
+A data frame with 30 rows and 4 columns:
 \describe{
-  \item{label}{Unique identifier for each location}
+  \item{label}{Unique identifier for each facility}
   \item{x, y}{The longitude (x) and latitude (y) for each facility}
-  \item{weight}{The initial weight used to estimate facility "attractiveness"}
+  \item{weight}{The observed event count for each facility (model response)}
 }
 }
 \source{
 Simulated for package examples.
 }
 \description{
-Simulated locations meant to represent health facility locations in Kapiri
-Mposhi district, Zambia.
+Simulated health facility locations for Kapiri Mposhi district, Zambia. The
+30 facilities are placed at population-weighted random pixels, and the
+\code{weight} column holds simulated observed event counts: population is
+allocated to facilities through a known exponential distance-decay
+(\code{tau = 45} minutes, using a walk-only friction surface) and mild
+facility masses, then thinned to counts with Poisson noise. These counts give
+a well-identified model that converges with a positive-definite Hessian, so
+the uncertainty and validation tooling can be demonstrated. See
+\code{inst/generate-example-data.R}.
 }
 \keyword{datasets}

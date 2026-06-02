@@ -55,8 +55,10 @@ data("example_shp")   # an sf polygon
 data("example_locs")  # a data frame of facility locations
 pop <- example_pop()  # a terra SpatRaster
 
-## Get friction surface
-fric <- terra::rast(PATHtools::get_friction_surface(example_shp))
+## Get friction surface with the traveltime package
+## (https://github.com/idem-lab/traveltime)
+fric <- traveltime::get_friction_surface(surface = "walk2020", extent = pop) |>
+  terra::mask(terra::vect(example_shp))
 fric <- terra::resample(fric, pop, method = "average")
 
 ## Create output folder

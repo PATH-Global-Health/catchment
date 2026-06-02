@@ -57,8 +57,10 @@ points(crds[,c("x", "y")])
 
 example_locs <- crds
 
-# Get friction surface
-fric <- PATHtools::get_friction_surface(shp)
+# Get friction surface (traveltime: https://github.com/idem-lab/traveltime)
+# NOTE: superseded by inst/generate-example-data.R, which simulates
+# model-consistent counts so the example fits with a positive-definite Hessian.
+fric <- traveltime::get_friction_surface(surface = "walk2020", extent = pop)
 
 values(pop)[values(pop) == 0] <- NA
 

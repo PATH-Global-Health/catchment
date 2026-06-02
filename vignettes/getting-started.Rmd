@@ -33,13 +33,12 @@ data("example_locs")
 pop <- example_pop()
 ```
 
-Next we will also need a friction surface, which we will use to calculate travel times from each pixel to all health facility locations. In this tutorial, we can use the friction surface developed by the Malaria Atlas Project. Our team has written a function for pulling this surface in a package called [PATHtools](https://github.com/PATH-Global-Health/PATHtools), which you can install via GitHub.
-
-We also need to resample the friction raster so that it aligns with our population raster.
+Next we will also need a friction surface, which we will use to calculate travel times from each pixel to all health facility locations. In this tutorial, we use the walking-only friction surface developed by the Malaria Atlas Project, pulled with the [traveltime](https://github.com/idem-lab/traveltime) package. We mask it to the study boundary and resample it so that it aligns with our population raster.
 
 ```{r fric-surface}
-# devtools::install_github("PATH-Global-Health/PATHtools")
-fric <- terra::rast(PATHtools::get_friction_surface(example_shp))
+# remotes::install_github("idem-lab/traveltime")
+fric <- traveltime::get_friction_surface(surface = "walk2020", extent = pop) |>
+  terra::mask(terra::vect(example_shp))
 fric <- terra::resample(fric, pop, method = "average")
 ```
 
