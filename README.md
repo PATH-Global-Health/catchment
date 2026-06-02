@@ -1,3 +1,4 @@
+
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
 # catchment <img src='man/figures/logo.png' align="right" height="139" />
@@ -6,22 +7,47 @@
 
 <!-- badges: end -->
 
-The goal of catchment is to estimate health facility catchment populations using Bayesian gravity models. The primary purpose of these population estimates is to calculate catchment-level incidence rates using routine reporting data from health information systems. 
+The goal of catchment is to estimate health facility catchment
+populations using Bayesian gravity models. The primary purpose of these
+population estimates is to calculate catchment-level incidence rates
+using routine reporting data from health information systems.
+
+The model is fit with [TMB](https://github.com/kaskr/adcomp) and
+provides:
+
+- a **learned distance-decay** parameter (exponential or power family),
+  estimated from the data rather than fixed a priori;
+- **uncertainty** on catchment populations, propagated through the
+  random effects via `TMB::sdreport()`;
+- optional **negative-binomial** likelihood for overdispersed counts;
+- **validation tooling** — posterior-predictive checks (`pp_check()`)
+  and leave-one-facility-out cross-validation (`loo_facility_cv()`);
+- **plot methods** for dominant catchments and per-facility
+  access-probability surfaces.
+
+See the *getting-started* and *prior-predictive* vignettes for full
+walkthroughs.
 
 ## Installation
 
-Fitting the catchment model requires the [R-INLA](https://www.r-inla.org/home) and [Template Model Builder (TMB)](https://github.com/kaskr/adcomp) packages. INLA is not on CRAN, and the installation process may depend on the type of computer you are using. I recommend following the [installation instructions for INLA](<https://www.r-inla.org/download-install>) first. Be sure to close out of any active R session before installation!
+Fitting the catchment model requires the
+[R-INLA](https://www.r-inla.org/home) and [Template Model Builder
+(TMB)](https://github.com/kaskr/adcomp) packages. INLA is not on CRAN,
+and the installation process may depend on the type of computer you are
+using. I recommend following the [installation instructions for
+INLA](https://www.r-inla.org/download-install) first. Be sure to close
+out of any active R session before installation!
 
-The catchment package is also not on CRAN (yet!). You can install the development version of catchment from [GitHub](https://github.com/) with:
+The catchment package is also not on CRAN (yet!). You can install the
+development version of catchment from [GitHub](https://github.com/)
+with:
 
 ``` r
 # install.packages("devtools")
 devtools::install_github("PATH-Global-Health/catchment")
 ```
+
 ## Example
-
-We are currently developing documentation and tutorial materials.
-
 
 ``` r
 # Load libraries
@@ -43,7 +69,7 @@ fric <- terra::resample(fric, pop, method = "average")
 f <- tempfile()
 fs::dir_create(fs::path(f, "tt"))
 
-# 2. Travel time and initial access surfaces ------------
+# 2. Travel time surfaces --------------------------------
 ## Create individual travel time rasters
 create_travel_surface(friction_surface = fric, extent_file = pop,
   points = example_locs, id_col = "label", x_col = "x", y_col = "y",
@@ -52,25 +78,26 @@ create_travel_surface(friction_surface = fric, extent_file = pop,
 ## Organize travel time matrix
 tmat <- travel_mat_from_folder(dir = fs::path(f, "tt"), reference = pop)
 
-## Create initial accessibility matrix
-pmat <- initial_access_surface(tmat, n_fac_limit = 10, force_threshold = 300, sparse = FALSE)
-
 # 3. Fit catchment model ---------------------------------
-## Organize input data
-catch_dat <- prepare_data(prob_mat_init = pmat, pop_raster = pop,
-  location_data = example_locs, mesh.args = list(cutoff = 0.1, max.edge = c(0.1, 4)))
+## Organize input data. Passing the raw travel-time matrix lets the model
+## learn the distance-decay parameter (sparsity controls live here).
+catch_dat <- prepare_data(prob_mat_init = tmat, pop_raster = pop,
+  location_data = example_locs, minimum_time = 10, force_threshold = 300,
+  n_fac_limit = 10, mesh.args = list(cutoff = 0.1, max.edge = c(0.1, 4)))
 
-## View INLA mesh
-plot(catch_dat$mesh)
-plot(sf::st_geometry(example_shp), add = TRUE, border = "red", lwd = 2)
-points(example_locs$x, example_locs$y)
-
-## Fit catchment model
+## Fit catchment model (Poisson + learned exponential decay by default)
 mod <- catchment_model(catch_dat)
+mod                          # family, decay, convergence, pdHess
+mod$decay_param              # estimated decay (tau in minutes)
 
 # 4. Post-processing -------------------------------------
-## Estimated catchment populations
+## Estimated catchment populations, with uncertainty
 catchment_populations(mod)
-example_locs$est_pop <- catchment_populations(mod)
-```
+catchment_populations(mod, uncertainty = TRUE)   # SEs + 95% CIs
 
+# 5. Validation & visualization --------------------------
+pp_check(mod)                # posterior-predictive coverage + dispersion
+loo_facility_cv(mod)         # leave-one-facility-out CV
+plot(mod)                    # dominant-catchment map
+plot_prob_surface(mod, id_label = example_locs$label[1])
+```
