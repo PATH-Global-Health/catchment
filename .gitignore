@@ -12,3 +12,4 @@ docs
 inst/doc
 .claude
 tests/testthat/Rplots.pdf
+README.html
