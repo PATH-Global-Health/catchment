@@ -11,3 +11,6 @@
 #' @useDynLib catchment, .registration = TRUE
 ## usethis namespace: end
 NULL
+
+# Quiet R CMD check about the .data pronoun used inside ggplot2 aes() mappings.
+utils::globalVariables(".data")
