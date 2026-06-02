@@ -1,0 +1,176 @@
+---
+title: "Prior-predictive checks"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Prior-predictive checks}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 4
+)
+set.seed(1)
+```
+
+The catchment model places priors on several quantities. Before fitting it is
+worth understanding what those priors *imply* about the model's behaviour — this
+is the idea behind a **prior-predictive check**. This vignette visualises the
+priors the package uses and shows how sensitive the implied catchment allocation
+is to the two priors you are most likely to want to tune: the facility-mass
+prior and the distance-decay prior.
+
+None of the chunks below fit a model, so this vignette runs without INLA or TMB.
+
+## The facility-mass prior
+
+Each facility carries a multiplicative *mass* (attractiveness) term. The model
+works on the log scale with
+
+$$\texttt{log\_hf\_mass} \sim \mathrm{Normal}(0,\ \sigma_\text{mass}),$$
+
+so on the natural scale the mass is log-normal and centred on 1. The default
+`log_hf_mass_sd = 0.1` is deliberately tight: it keeps facilities close to equal
+attractiveness and stabilises a model that is often weakly identified when there
+are few facilities. Loosening it lets the data pull facility masses further
+apart.
+
+The plot below shows the implied prior on the *relative* mass (mass divided by
+its median) for three values of the prior SD.
+
+```{r mass-prior}
+sds <- c(0.1, 0.5, 1.0)
+x   <- seq(0.3, 3, length.out = 400)         # relative mass
+cols <- c("black", "steelblue", "firebrick")
+
+plot(NA, xlim = range(x), ylim = c(0, 4.2),
+     xlab = "relative facility mass", ylab = "prior density",
+     main = "Implied prior on relative facility mass")
+for (i in seq_along(sds)) {
+  lines(x, dlnorm(x, meanlog = 0, sdlog = sds[i]), col = cols[i], lwd = 2)
+}
+abline(v = 1, lty = 3, col = "grey60")
+legend("topright", legend = paste0("sd = ", sds),
+       col = cols, lwd = 2, bty = "n")
+```
+
+A useful summary is the 95% prior interval for the mass *ratio* between two
+facilities — how different the model is willing to let two facilities' pulls be,
+a priori:
+
+```{r mass-ratio}
+ratio_interval <- function(sd) {
+  # ratio of two independent log-normal masses is log-normal with sd*sqrt(2)
+  round(exp(qnorm(c(0.025, 0.975)) * sd * sqrt(2)), 2)
+}
+sapply(sds, ratio_interval)
+```
+
+With the default `sd = 0.1` two facilities differ by at most ~30% a priori;
+at `sd = 1` one facility can plausibly attract several times the population of
+another before seeing any data.
+
+## The distance-decay prior
+
+When the decay parameter is learned (the default), the model estimates it on the
+log scale with a `Normal(log(centre), 1)` prior, where the centre is the family
+default: `tau = 60` minutes for the exponential family and `a = 2` for the power
+family. The wide SD of 1 on the log scale is intentionally weakly informative.
+
+First, the prior on the decay parameter itself:
+
+```{r decay-param-prior}
+tau   <- seq(5, 300, length.out = 400)
+a     <- seq(0.3, 6, length.out = 400)
+
+par(mfrow = c(1, 2))
+plot(tau, dlnorm(tau, meanlog = log(60), sdlog = 1), type = "l", lwd = 2,
+     xlab = expression(tau ~ "(minutes)"), ylab = "prior density",
+     main = "Exponential scale")
+abline(v = 60, lty = 3, col = "grey60")
+
+plot(a, dlnorm(a, meanlog = log(2), sdlog = 1), type = "l", lwd = 2,
+     xlab = "exponent a", ylab = "prior density",
+     main = "Power exponent")
+abline(v = 2, lty = 3, col = "grey60")
+par(mfrow = c(1, 1))
+```
+
+More informative is the *prior-predictive* spread of the decay **curves** these
+priors imply. We draw decay parameters from the prior and plot the resulting
+weight-vs-travel-time relationships. Steeper curves mean access falls off
+quickly with travel time (tight, local catchments); flatter curves mean facilities
+draw from further away.
+
+```{r decay-curves}
+d <- seq(1, 180, length.out = 200)          # travel time (minutes)
+n_draw <- 60
+
+par(mfrow = c(1, 2))
+
+## Exponential: exp(-d / tau)
+plot(NA, xlim = range(d), ylim = c(0, 1),
+     xlab = "travel time (min)", ylab = "relative access weight",
+     main = "Exponential decay (prior draws)")
+tau_draws <- rlnorm(n_draw, meanlog = log(60), sdlog = 1)
+for (t in tau_draws) lines(d, exp(-d / t), col = adjustcolor("steelblue", 0.3))
+lines(d, exp(-d / 60), col = "black", lwd = 2)   # prior median
+
+## Power: d^-a, normalised to 1 at d = 1 for display
+plot(NA, xlim = range(d), ylim = c(0, 1),
+     xlab = "travel time (min)", ylab = "relative access weight",
+     main = "Power decay (prior draws)")
+a_draws <- rlnorm(n_draw, meanlog = log(2), sdlog = 1)
+for (aa in a_draws) lines(d, d^(-aa) / 1^(-aa), col = adjustcolor("firebrick", 0.3))
+lines(d, d^(-2), col = "black", lwd = 2)         # prior median
+par(mfrow = c(1, 1))
+```
+
+The exponential family puts most of its prior mass on smooth, moderate decay,
+while the power family admits both very steep (near-nearest-facility) and very
+flat allocations. If you have strong external knowledge about how far people
+travel, you can fix the decay instead of learning it (`estimate_decay = FALSE`,
+`decay_init = ...`).
+
+## The spatial-field priors
+
+The Matérn SPDE field that captures residual spatial structure in demand has
+priors on its range (`log_rho`) and marginal standard deviation (`log_sigma`).
+The defaults are `log_rho ~ Normal(log(5), 0.5)` and
+`log_sigma ~ Normal(-1, 0.5)`.
+
+```{r field-priors}
+par(mfrow = c(1, 2))
+rho   <- seq(0.5, 30, length.out = 400)
+sigma <- seq(0.05, 2, length.out = 400)
+
+plot(rho, dlnorm(rho, meanlog = log(5), sdlog = 0.5), type = "l", lwd = 2,
+     xlab = "range (spatial units)", ylab = "prior density",
+     main = "Field range")
+plot(sigma, dlnorm(sigma, meanlog = -1, sdlog = 0.5), type = "l", lwd = 2,
+     xlab = "marginal SD", ylab = "prior density",
+     main = "Field marginal SD")
+par(mfrow = c(1, 1))
+```
+
+The range prior should be interpreted relative to the extent of your study area
+and the units of your coordinates. If your domain is much larger or smaller than
+these defaults assume, adjust the mesh (via `mesh.args` in `prepare_data()`) and
+consider whether the range prior is sensible for your spatial scale.
+
+## Putting it together
+
+A practical prior-predictive workflow is:
+
+1. Decide how different you believe facility attractiveness can be, and set
+   `log_hf_mass_sd` so the implied mass-ratio interval matches that belief.
+2. Decide whether access decay is local or broad, choose the decay family, and
+   either learn it (default) or fix it if you have strong prior knowledge.
+3. Check that the field range prior is reasonable for your spatial extent.
+
+Once fitted, validate the model against the observed counts with `pp_check()`
+and `loo_facility_cv()` — see the *getting-started* vignette.

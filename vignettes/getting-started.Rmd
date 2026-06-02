@@ -82,32 +82,41 @@ tmat <- travel_mat_from_folder(dir = fs::path(f, "tt"),
                                reference = pop)
 ```
 
-## Initial probability surface
+## Preparing the model data
 
-Before fitting the model, we first generate an initial access probability based on the travel times. This is done using the `initial_access_surface()` function. By default, this assumes that access is proportional to the inverse squared distance. In a future vignette we will describe how this can be adjusted.
+Before fitting the catchment model, we organize our data using the `prepare_data()` function. This function standardizes the input data and generates the INLA mesh.
 
-To improve model fitting performance, we provide arguments for making this matrix sparse. These include setting limits on how many facilities can be selected (`n_fac_limit`) and forcing remote pixels to the nearest location (`force_threshold`). Finally there is an argument for formatting the matrix into a sparse `Matrix` object.
+> Note: fitting the model requires the [INLA](https://www.r-inla.org/download-install) and [TMB](https://github.com/kaskr/adcomp) packages. See the README for installation instructions.
+
+There are two ways to supply the accessibility information, depending on whether you want the model to **learn** the distance-decay shape or use a **fixed** one.
+
+**Recommended — learn the decay.** Pass the raw travel-time matrix (`tmat`) directly. `prepare_data()` then builds the sparse travel template the model needs to estimate the decay parameter. The sparsity controls live here: `minimum_time` clamps very short travel times (the power family blows up as travel time approaches zero), `force_threshold` forces remote pixels to their nearest facility, and `n_fac_limit` caps how many facilities each pixel can be allocated to.
 
 ```{r}
-## Create initial accessibility matrix
+## Organize input data (learned-decay path)
+catch_dat <- prepare_data(
+  prob_mat_init  = tmat,
+  pop_raster     = pop,
+  location_data  = example_locs,
+  minimum_time   = 10,
+  force_threshold = 300,
+  n_fac_limit    = 10,
+  mesh.args = list(cutoff = 0.1, max.edge = c(0.1, 4)))
+```
+
+**Alternative — fixed decay.** If you prefer to bake in a fixed decay shape (e.g. inverse-squared distance), build the probability matrix yourself with `initial_access_surface()` and pass that instead. Fitting then uses `decay = "none"` (see below).
+
+```{r}
+## Create a fixed initial accessibility matrix (legacy path)
 pmat <- initial_access_surface(
   tmat,
   n_fac_limit = 10,
   force_threshold = 300,
   sparse = FALSE)
-```
 
-## Fitting the catchment model
-
-Before fitting the catchment model, we can organize our data using the `prepare_data()` function. This function standardizes the input data and generates the INLA mesh.
-
-> Note: fitting the model requires the [INLA](https://www.r-inla.org/download-install) and [TMB](https://github.com/kaskr/adcomp) packages. See the README for installation instructions.
-
-```{r}
-## Organize input data
-catch_dat <- prepare_data(
+catch_dat_fixed <- prepare_data(
   prob_mat_init = pmat,
-  pop_raster = pop,
+  pop_raster    = pop,
   location_data = example_locs,
   mesh.args = list(cutoff = 0.1, max.edge = c(0.1, 4)))
 ```
@@ -128,14 +137,82 @@ Now we can fit the catchment model. Please keep in mind that this is a computati
 mod <- catchment_model(catch_dat)
 ```
 
+By default `catchment_model()` fits a Poisson likelihood and **learns an exponential distance-decay** (`exp(-d / tau)`, with the scale `tau` in minutes estimated from the data). You can change either of these:
+
+```{r}
+## Power-law decay (estimate the exponent a in d^-a)
+mod_pow <- catchment_model(catch_dat, decay = "power")
+
+## Negative-binomial likelihood for overdispersed counts
+mod_nb  <- catchment_model(catch_dat, family = "nb")
+
+## Fixed decay (uses the precomputed surface in catch_dat_fixed)
+mod_fix <- catchment_model(catch_dat_fixed, decay = "none")
+```
+
+The learned decay parameter is stored on the fitted object:
+
+```{r}
+mod$decay        # "exponential"
+mod$decay_param  # estimated tau (minutes)
+```
+
+## Checking convergence
+
+`catchment_model()` checks convergence automatically and warns if the optimiser failed, the gradient is large, or the Hessian is not positive-definite. You can inspect the diagnostics at any time:
+
+```{r}
+check_convergence(mod)
+mod                 # print method shows family, decay, convergence, pdHess
+```
+
 ## Post-processing results
 
 Once the model is fit, we can use the `catchment_populations()` function to generate the estimated catchment population for each facility.
 
 ```{r}
-## Estimated catchment populations
+## Estimated catchment populations (point estimates)
 catchment_populations(mod)
 example_locs$est_pop <- catchment_populations(mod)
 ```
 
-We are actively developing tools for post-processing, including extracting the fitted weights for each facility, assessing model fit, and visualizing catchments. Please look for future updates!
+Because the model is fit with TMB, standard errors are propagated through the random effects via `TMB::sdreport()`. Set `uncertainty = TRUE` to return a data frame with standard errors and approximate 95% confidence intervals:
+
+```{r}
+## Estimated catchment populations with uncertainty
+catchment_populations(mod, uncertainty = TRUE)
+```
+
+## Validating the fit
+
+The package provides posterior-predictive checks and leave-one-facility-out cross-validation to assess how well the model reproduces the observed facility counts.
+
+```{r}
+## Posterior-predictive check: coverage + dispersion + a diagnostic plot
+ppc <- pp_check(mod, nsim = 1000)
+ppc$coverage     # fraction of observed counts inside their predictive interval
+ppc$dispersion   # ~1 indicates Poisson-consistent dispersion
+ppc$plot         # ggplot of observed counts vs predictive intervals
+```
+
+```{r}
+## Leave-one-facility-out cross-validation
+cv <- loo_facility_cv(mod)
+attr(cv, "rmse")
+attr(cv, "mae")
+```
+
+## Visualizing catchments
+
+We can map each pixel to the facility it is most likely to attend with `dominant_catchment()`, or plot the access-probability surface for a single facility with `plot_prob_surface()`. The plot methods use **ggplot2** and **tidyterra** when available (and fall back to base `terra` plotting otherwise).
+
+```{r}
+## Dominant-catchment map (also the default plot() for a fitted model)
+plot(mod)
+
+## Access-probability surface for one facility
+plot_prob_surface(mod, id_label = example_locs$label[1])
+
+## Or extract the raster directly
+prob_r <- get_prob_raster(mod, id_label = example_locs$label[1])
+```
