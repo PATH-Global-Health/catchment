@@ -1,11 +1,16 @@
 #' Preparing input data from catchment model
 #'
-#' @param prob_mat_init A matrix object.
+#' @param prob_mat_init A raw travel-time matrix of class `travel_mat` from
+#'   [travel_mat_from_folder()] (pixel-by-facility), or a pre-built probability
+#'   matrix from [initial_access_surface()] (dense pixel-by-facility, or sparse
+#'   facility-by-pixel).  See *Matching facilities* for how its facility
+#'   dimension is aligned with `location_data`.
 #' @param pop_raster A raster object.
 #' @param location_data A dataframe object which contains point-level data,
 #'   including coordinates, labels, and weights.
 #' @param id_col A character for the column in location_data that contains the
-#'   labels for individual points.  Must be unique.
+#'   labels for individual points.  Must be unique, and must equal the facility
+#'   names of `prob_mat_init` when it has them.
 #' @param weight_col A character for the column in location_data that contains
 #'   the weights (observed counts) for each facility.
 #' @param x_col A character for the X column.
@@ -27,7 +32,25 @@
 #'   template used by the C++ distance-decay path (Phase D); ignored when a
 #'   pre-built probability matrix is supplied.
 #'
-#' @return a list with class `catchment_data`.
+#' @section Matching facilities:
+#' Weights, coordinates and labels are taken from `location_data` in its own row
+#' order, so the facility dimension of `prob_mat_init` must be in that same
+#' order.  When `prob_mat_init` has facility names (column names for a dense
+#' matrix, row names for a sparse `Matrix`), they are matched against
+#' `location_data[[id_col]]` and the matrix is reordered to the `location_data`
+#' order; an error is raised if any id has no matching facility name, any
+#' facility name has no matching id, or facility names are duplicated.
+#' [travel_mat_from_folder()] names its columns after the `.tif` files, and
+#' [initial_access_surface()] keeps those names.
+#'
+#' When `prob_mat_init` has no facility names the order cannot be checked: a
+#' warning is emitted and the matrix is used as is.  A mismatch is then silent
+#' and pairs each facility's counts and label with another facility's travel
+#' surface.
+#'
+#' @return a list with class `catchment_data`.  `prob_mat_init`, `travel_sparse`,
+#'   `weights`, `loc_coords` and `loc_labels` are all in `location_data` row
+#'   order.
 #' @export
 #'
 #'
@@ -75,24 +98,10 @@ prepare_data <- function(
     stop("`weight_col` must be a numeric column with one value per facility.",
          call. = FALSE)
 
-  # Check that prob_mat_init columns/rows agree with n_fac.
+  # Align the facility dimension of prob_mat_init with location_data, by name:
   # initial_access_surface(sparse=TRUE) → [n_hf x n_pixel] sparse Matrix;
-  # sparse=FALSE → [n_pixel x n_hf] dense matrix.
-  if (!inherits(prob_mat_init, "travel_mat")) {
-    if (inherits(prob_mat_init, "Matrix")) {
-      if (nrow(prob_mat_init) != n_fac)
-        stop("`prob_mat_init` has ", nrow(prob_mat_init),
-             " rows but `location_data` has ", n_fac,
-             " facilities (expected one row per facility for a sparse Matrix).",
-             call. = FALSE)
-    } else if (is.matrix(prob_mat_init)) {
-      if (ncol(prob_mat_init) != n_fac)
-        stop("`prob_mat_init` has ", ncol(prob_mat_init),
-             " columns but `location_data` has ", n_fac,
-             " facilities (expected one column per facility for a dense matrix).",
-             call. = FALSE)
-    }
-  }
+  # sparse=FALSE → [n_pixel x n_hf] dense matrix (as is a raw travel_mat).
+  prob_mat_init <- .match_facilities(prob_mat_init, loc_labels, id_col)
 
   # Get pixel index
   pop_vals <- terra::values(pop_raster, mat = FALSE)
@@ -197,6 +206,60 @@ summary.catchment_data <- function(object, ...) {
   cat(" Weight summary   :\n")
   print(summary(object$weights))
   invisible(object)
+}
+
+# Internal: reorder the facility dimension of `mat` to match `ids`, by name.
+# Facilities are columns of a dense matrix ([n_pixel × n_hf], incl. travel_mat)
+# and rows of a sparse Matrix ([n_hf × n_pixel]). Errors on any unmatched id or
+# facility name. With no names it can only check the facility count, and warns.
+.match_facilities <- function(mat, ids, id_col = "label") {
+  sparse <- inherits(mat, "Matrix")
+  if (!sparse && !is.matrix(mat)) return(mat)
+  what <- if (sparse) "row" else "column"
+  nms  <- dimnames(mat)[[if (sparse) 1L else 2L]]
+
+  if (is.null(nms)) {
+    n <- if (sparse) nrow(mat) else ncol(mat)
+    if (n != length(ids))
+      stop("`prob_mat_init` has ", n, " ", what, "s but `location_data` has ",
+           length(ids), " facilities (expected one ", what, " per facility for a ",
+           if (sparse) "sparse Matrix" else "dense matrix", ").", call. = FALSE)
+    warning("`prob_mat_init` has no ", what, " names, so its facility order ",
+            "cannot be verified against `location_data$", id_col, "`. ",
+            "Facilities are assumed to be in the same order as the rows of ",
+            "`location_data`; if they are not, results will be silently wrong. ",
+            "travel_mat_from_folder() names columns after the .tif files.",
+            call. = FALSE)
+    return(mat)
+  }
+
+  ids <- as.character(ids)
+  no_surface <- setdiff(ids, nms)
+  no_id      <- setdiff(nms, ids)
+  dups       <- unique(nms[duplicated(nms)])
+  if (length(no_surface) || length(no_id) || length(dups)) {
+    show <- function(x) paste0(paste(utils::head(x, 10), collapse = ", "),
+                               if (length(x) > 10) ", ..." else "")
+    stop("Facility ", what, " names of `prob_mat_init` do not match ",
+         "`location_data$", id_col, "`.",
+         if (length(no_surface))
+           paste0("\n  ", length(no_surface), " id(s) with no matching ", what,
+                  ": ", show(no_surface)),
+         if (length(no_id))
+           paste0("\n  ", length(no_id), " ", what, "(s) with no matching id: ",
+                  show(no_id)),
+         if (length(dups))
+           paste0("\n  ", length(dups), " duplicated ", what, " name(s): ",
+                  show(dups)),
+         call. = FALSE)
+  }
+
+  if (identical(nms, ids)) return(mat)
+  if (sparse) return(mat[ids, , drop = FALSE])
+  cls <- oldClass(mat)                    # `[` drops the travel_mat class
+  mat <- mat[, ids, drop = FALSE]
+  oldClass(mat) <- cls
+  mat
 }
 
 # Internal: build a clamped sparse travel-time template [n_hf × n_pixel] for the

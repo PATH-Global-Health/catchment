@@ -21,7 +21,11 @@ prepare_data(
 )
 }
 \arguments{
-\item{prob_mat_init}{A matrix object.}
+\item{prob_mat_init}{A raw travel-time matrix of class `travel_mat` from
+[travel_mat_from_folder()] (pixel-by-facility), or a pre-built probability
+matrix from [initial_access_surface()] (dense pixel-by-facility, or sparse
+facility-by-pixel).  See *Matching facilities* for how its facility
+dimension is aligned with `location_data`.}
 
 \item{pop_raster}{A raster object.}
 
@@ -29,7 +33,8 @@ prepare_data(
 including coordinates, labels, and weights.}
 
 \item{id_col}{A character for the column in location_data that contains the
-labels for individual points.  Must be unique.}
+labels for individual points.  Must be unique, and must equal the facility
+names of `prob_mat_init` when it has them.}
 
 \item{weight_col}{A character for the column in location_data that contains
 the weights (observed counts) for each facility.}
@@ -59,8 +64,28 @@ template used by the C++ distance-decay path (Phase D); ignored when a
 pre-built probability matrix is supplied.}
 }
 \value{
-a list with class `catchment_data`.
+a list with class `catchment_data`.  `prob_mat_init`, `travel_sparse`,
+  `weights`, `loc_coords` and `loc_labels` are all in `location_data` row
+  order.
 }
 \description{
 Preparing input data from catchment model
 }
+\section{Matching facilities}{
+
+Weights, coordinates and labels are taken from `location_data` in its own row
+order, so the facility dimension of `prob_mat_init` must be in that same
+order.  When `prob_mat_init` has facility names (column names for a dense
+matrix, row names for a sparse `Matrix`), they are matched against
+`location_data[[id_col]]` and the matrix is reordered to the `location_data`
+order; an error is raised if any id has no matching facility name, any
+facility name has no matching id, or facility names are duplicated.
+[travel_mat_from_folder()] names its columns after the `.tif` files, and
+[initial_access_surface()] keeps those names.
+
+When `prob_mat_init` has no facility names the order cannot be checked: a
+warning is emitted and the matrix is used as is.  A mismatch is then silent
+and pairs each facility's counts and label with another facility's travel
+surface.
+}
+

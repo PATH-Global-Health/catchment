@@ -2,12 +2,12 @@
 % Please edit documentation in R/travel_matrix_from_folder.R
 \name{travel_mat_from_folder}
 \alias{travel_mat_from_folder}
-\title{Title}
+\title{Build a travel-time matrix from a folder of rasters}
 \usage{
 travel_mat_from_folder(dir, reference = NA, sparse = TRUE, progress = TRUE)
 }
 \arguments{
-\item{dir}{A character string for the location of individual travel time rasters (NOTE: this folder should ONLY contain .tif files for travel time rasters).}
+\item{dir}{A character string for the location of individual travel time rasters (NOTE: this folder should ONLY contain .tif files for travel time rasters, each named `<facility id>.tif`).}
 
 \item{reference}{A raster files used to determine which pixels should be included (typically this is the population raster).}
 
@@ -16,8 +16,18 @@ travel_mat_from_folder(dir, reference = NA, sparse = TRUE, progress = TRUE)
 \item{progress}{TRUE/FALSE Show a progress bar?}
 }
 \value{
-A matrix that is n_pixels by n_facilities.
+A matrix of class `travel_mat` that is n_pixels by n_facilities, with
+  column names taken from the `.tif` file names (extension removed).
 }
 \description{
-Title
+Reads every `.tif` in `dir` (one travel-time surface per facility, as written
+by [create_travel_surface()] with `individual_surfaces = TRUE`) into a
+pixel-by-facility matrix.
+}
+\details{
+Columns are in file-name order, which is generally **not** the row order of
+your facility table.  Each column is therefore named after its file (without
+the `.tif` extension), and [prepare_data()] uses those names to match columns
+to `location_data[[id_col]]`.  Keep the column names intact, and name the
+rasters by facility id.
 }
