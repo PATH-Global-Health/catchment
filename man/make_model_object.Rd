@@ -9,7 +9,8 @@ make_model_object(
   family = "poisson",
   decay = "exponential",
   estimate_decay = TRUE,
-  decay_init = NULL
+  decay_init = NULL,
+  hf_mass_sd = 0.1
 )
 }
 \arguments{
@@ -24,6 +25,8 @@ make_model_object(
 
 \item{decay_init}{Initial natural-scale decay parameter (\code{a} for power,
 \code{tau} minutes for exponential); \code{NULL} uses the family default.}
+
+\item{hf_mass_sd}{Prior SD of \code{log_hf_mass}; see [catchment_model()].}
 }
 \value{
 A TMB AD function object.  The resolved decay family is attached as

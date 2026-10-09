@@ -22,6 +22,17 @@
 #' @param decay_init Initial (natural-scale) decay parameter: the exponent
 #'   \code{a} for \code{"power"} or the scale \code{tau} (minutes) for
 #'   \code{"exponential"}.  Defaults to 2 (power) or 60 (exponential).
+#' @param hf_mass_sd Prior SD of the facility log-attraction \code{log_hf_mass}
+#'   (default \code{0.1}).  Controls how far the observed counts may reshape the
+#'   allocation: at the default, facility mass is effectively pinned near 1 and
+#'   catchment populations are decided almost entirely by travel geometry.
+#'   Larger values (0.3-0.5) let a facility reporting more cases than its
+#'   geometric catchment can support draw population from its neighbours.  Only
+#'   relative mass is identified (the per-pixel normalisation makes the
+#'   allocation invariant to a common scaling), so the prior mean of 0 still
+#'   anchors the level.  Raise it gradually and re-check
+#'   [check_convergence()] and [loo_facility_cv()]: mass trades off against the
+#'   spatial field, and the trade is only weakly identified.
 #' @param time TRUE/FALSE Print optimisation run time?
 #'
 #' @return A list of class \code{catchment_fit} containing:
@@ -35,7 +46,7 @@
 #'
 catchment_model <- function(dat, family = "poisson",
                             decay = "exponential", estimate_decay = TRUE,
-                            decay_init = NULL, time = TRUE) {
+                            decay_init = NULL, hf_mass_sd = 0.1, time = TRUE) {
 
   if (!inherits(dat, "catchment_data"))
     stop("`dat` must be a catchment_data object created by prepare_data().",
@@ -46,7 +57,7 @@ catchment_model <- function(dat, family = "poisson",
 
   obj <- make_model_object(dat, family = family, decay = decay,
                            estimate_decay = estimate_decay,
-                           decay_init = decay_init)
+                           decay_init = decay_init, hf_mass_sd = hf_mass_sd)
 
   message("Fitting model (Could take a while)...")
   ptm <- proc.time()
@@ -104,7 +115,8 @@ catchment_model <- function(dat, family = "poisson",
     data        = dat,
     family      = family,
     decay       = decay_resolved,
-    decay_param = decay_param
+    decay_param = decay_param,
+    hf_mass_sd  = hf_mass_sd
   )
   class(out) <- c("catchment_fit", "list")
   return(out)
@@ -181,6 +193,7 @@ print.catchment_fit <- function(x, ...) {
 #' @param estimate_decay TRUE/FALSE: estimate the decay parameter.
 #' @param decay_init Initial natural-scale decay parameter (\code{a} for power,
 #'   \code{tau} minutes for exponential); \code{NULL} uses the family default.
+#' @param hf_mass_sd Prior SD of \code{log_hf_mass}; see [catchment_model()].
 #'
 #' @return A TMB AD function object.  The resolved decay family is attached as
 #'   \code{attr(obj, "decay")}.
@@ -188,7 +201,7 @@ print.catchment_fit <- function(x, ...) {
 #'
 make_model_object <- function(dat, family = "poisson",
                               decay = "exponential", estimate_decay = TRUE,
-                              decay_init = NULL) {
+                              decay_init = NULL, hf_mass_sd = 0.1) {
 
   if (!requireNamespace("INLA", quietly = TRUE)) {
     stop("Package 'INLA' is required for make_model_object(). Install it from ",
@@ -197,6 +210,9 @@ make_model_object <- function(dat, family = "poisson",
 
   family     <- match.arg(family, c("poisson", "nb"))
   family_int <- if (family == "poisson") 0L else 1L
+
+  if (!is.numeric(hf_mass_sd) || length(hf_mass_sd) != 1L || hf_mass_sd <= 0)
+    stop("`hf_mass_sd` must be a single positive number.", call. = FALSE)
 
   # --- Resolve distance-decay configuration ----------------------------------
   decay <- match.arg(decay, c("exponential", "power", "none"))
@@ -261,7 +277,7 @@ make_model_object <- function(dat, family = "poisson",
     log_sigma_sd     = 0.5,
     nu               = nu,
     log_hf_mass_mean = 0.0,
-    log_hf_mass_sd   = 0.1,
+    log_hf_mass_sd   = hf_mass_sd,
     log_nb_phi_mean  = 2.0,   # prior centred on phi≈7 (moderate overdispersion)
     log_nb_phi_sd    = 1.0
   )

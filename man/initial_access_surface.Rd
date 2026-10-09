@@ -30,7 +30,7 @@ initial_access_surface(
 \item{sparse}{TRUE/FALSE return a sparse matrix used by catchment_model}
 }
 \value{
-A matrix. If sparse == FALSE, then N_pixel rows by N_locations matrix containing initial assess surface will be returned. If sparse == TRUE, then a "sparse" Matrix object, used by model_catchment, is returned.
+A matrix. If sparse == FALSE, then N_pixel rows by N_locations matrix containing initial assess surface will be returned. If sparse == TRUE, then a "sparse" Matrix object, used by model_catchment, is returned; note this one is transposed (N_locations rows by N_pixel columns). Facility names of `travel_matrix` (its column names) are kept, as column names of the dense result and row names of the sparse one, so [prepare_data()] can match facilities by id.
 }
 \description{
 Create the initial accessibility surface

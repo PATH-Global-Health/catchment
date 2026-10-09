@@ -84,7 +84,8 @@ test_that("decay request without a travel template falls back to none", {
   # Pre-built probability matrix dimensioned to the raster's valid pixels.
   pv   <- terra::values(pop, mat = FALSE)
   n_v  <- sum(!is.na(pv) & pv > 0)
-  pmat <- matrix(runif(n_v * 4), nrow = n_v, ncol = 4)   # [n_pixel x n_hf]
+  pmat <- matrix(runif(n_v * 4), nrow = n_v, ncol = 4,     # [n_pixel x n_hf]
+                 dimnames = list(NULL, locs$label))
   dat  <- suppressMessages(
     prepare_data(prob_mat_init = pmat, pop_raster = pop, location_data = locs)
   )

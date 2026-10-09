@@ -145,7 +145,8 @@ test_that("print.catchment_fit shows NB family", {
 test_that("prepare_data with NULL pixel_covariates gives zero-column X_pixel", {
   skip_if_not_installed("fmesher")
   pop  <- make_test_raster(); locs <- make_test_points(4)
-  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4)
+  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4,
+                 dimnames = list(NULL, paste0("hf", 1:4)))
   dat  <- suppressMessages(
     prepare_data(prob_mat_init = pmat, pop_raster = pop, location_data = locs,
                  pixel_covariates = NULL)
@@ -156,7 +157,8 @@ test_that("prepare_data with NULL pixel_covariates gives zero-column X_pixel", {
 test_that("prepare_data extracts pixel covariates from a SpatRaster", {
   skip_if_not_installed("fmesher")
   pop  <- make_test_raster(); locs <- make_test_points(4)
-  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4)
+  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4,
+                 dimnames = list(NULL, paste0("hf", 1:4)))
   dat  <- suppressMessages(
     prepare_data(prob_mat_init = pmat, pop_raster = pop, location_data = locs,
                  pixel_covariates = make_test_raster(seed = 42))
@@ -169,7 +171,8 @@ test_that("prepare_data extracts pixel covariates from a SpatRaster", {
 test_that("prepare_data accepts a pre-built pixel covariate matrix", {
   skip_if_not_installed("fmesher")
   pop  <- make_test_raster(); locs <- make_test_points(4)
-  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4)
+  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4,
+                 dimnames = list(NULL, paste0("hf", 1:4)))
   n_v  <- sum(!is.na(terra::values(pop, mat = FALSE)) &
                 terra::values(pop, mat = FALSE) > 0)
   X    <- matrix(rnorm(n_v * 2), n_v, 2,
@@ -185,7 +188,8 @@ test_that("prepare_data accepts a pre-built pixel covariate matrix", {
 test_that("prepare_data errors on pixel covariate row mismatch", {
   skip_if_not_installed("fmesher")
   pop  <- make_test_raster(); locs <- make_test_points(4)
-  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4)
+  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4,
+                 dimnames = list(NULL, paste0("hf", 1:4)))
   expect_error(
     suppressMessages(
       prepare_data(prob_mat_init = pmat, pop_raster = pop, location_data = locs,
@@ -199,7 +203,8 @@ test_that("prepare_data errors on pixel covariate row mismatch", {
 test_that("prepare_data with NULL facility_covariates gives zero-column Z_hf", {
   skip_if_not_installed("fmesher")
   pop  <- make_test_raster(); locs <- make_test_points(4)
-  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4)
+  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4,
+                 dimnames = list(NULL, paste0("hf", 1:4)))
   dat  <- suppressMessages(
     prepare_data(prob_mat_init = pmat, pop_raster = pop, location_data = locs)
   )
@@ -209,7 +214,8 @@ test_that("prepare_data with NULL facility_covariates gives zero-column Z_hf", {
 test_that("prepare_data stores facility covariates correctly", {
   skip_if_not_installed("fmesher")
   pop  <- make_test_raster(); locs <- make_test_points(4)
-  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4)
+  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4,
+                 dimnames = list(NULL, paste0("hf", 1:4)))
   Z    <- data.frame(beds = c(10, 20, 5, 15), type = c(1, 2, 1, 2))
   dat  <- suppressMessages(
     prepare_data(prob_mat_init = pmat, pop_raster = pop, location_data = locs,
@@ -222,7 +228,8 @@ test_that("prepare_data stores facility covariates correctly", {
 test_that("prepare_data errors on facility covariate row mismatch", {
   skip_if_not_installed("fmesher")
   pop  <- make_test_raster(); locs <- make_test_points(4)
-  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4)
+  pmat <- matrix(runif(4 * 10), nrow = 10, ncol = 4,
+                 dimnames = list(NULL, paste0("hf", 1:4)))
   expect_error(
     suppressMessages(
       prepare_data(prob_mat_init = pmat, pop_raster = pop, location_data = locs,
