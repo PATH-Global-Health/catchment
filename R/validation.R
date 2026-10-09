@@ -146,6 +146,7 @@ loo_facility_cv <- function(mod) {
   decay          <- if (!is.null(mod$decay)) mod$decay else "none"
   estimate_decay <- "log_decay" %in% names(mod$fit$par)
   decay_init     <- if (decay == "none") NULL else mod$decay_param
+  hf_mass_sd     <- if (!is.null(mod$hf_mass_sd)) mod$hf_mass_sd else 0.1
 
   obs_idx <- which(dat$which_not_NA == 1)
   preds   <- rep(NA_real_, length(obs_idx))
@@ -157,7 +158,8 @@ loo_facility_cv <- function(mod) {
 
     obj <- suppressMessages(make_model_object(
       dat_k, family = family, decay = decay,
-      estimate_decay = estimate_decay, decay_init = decay_init))
+      estimate_decay = estimate_decay, decay_init = decay_init,
+      hf_mass_sd = hf_mass_sd))
     fit <- stats::nlminb(obj$par, obj$fn, obj$gr,
                          control = list(iter.max = 300, eval.max = 300))
     preds[k] <- obj$report()$case_hf[i]

@@ -10,6 +10,7 @@ catchment_model(
   decay = "exponential",
   estimate_decay = TRUE,
   decay_init = NULL,
+  hf_mass_sd = 0.1,
   time = TRUE
 )
 }
@@ -33,6 +34,18 @@ when \code{decay = "none"}.}
 \item{decay_init}{Initial (natural-scale) decay parameter: the exponent
 \code{a} for \code{"power"} or the scale \code{tau} (minutes) for
 \code{"exponential"}.  Defaults to 2 (power) or 60 (exponential).}
+
+\item{hf_mass_sd}{Prior SD of the facility log-attraction \code{log_hf_mass}
+(default \code{0.1}).  Controls how far the observed counts may reshape the
+allocation: at the default, facility mass is effectively pinned near 1 and
+catchment populations are decided almost entirely by travel geometry.
+Larger values (0.3-0.5) let a facility reporting more cases than its
+geometric catchment can support draw population from its neighbours.  Only
+relative mass is identified (the per-pixel normalisation makes the
+allocation invariant to a common scaling), so the prior mean of 0 still
+anchors the level.  Raise it gradually and re-check
+[check_convergence()] and [loo_facility_cv()]: mass trades off against the
+spatial field, and the trade is only weakly identified.}
 
 \item{time}{TRUE/FALSE Print optimisation run time?}
 }
